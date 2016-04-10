@@ -56,9 +56,12 @@ def testInterp():
 
         zeros = np.zeros_like(binterp)
         ax.fill_between(sp.wave, zeros, binterp, alpha=0.2)
-        ax2.loglog(sp.wave, sp.flux, color='k')
+        ax2.semilogx(sp.wave, sp.flux, color='k')
         ax.set_xlabel('wavelength (AA)')
         ax.set_title(band.name)
-        sns.despine()
+        
+        ax.set_xlim(0, ax.get_xlim()[1])
+        ax2.set_xlim(0, ax2.get_xlim()[1])
+        
         fig.savefig('output/%s.pdf' % band.name)
         del fig
