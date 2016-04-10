@@ -161,10 +161,6 @@ class FitContext(object):
                                self.amplitude * tup[1] / (h * c) \
                                for tup in self.rest_x]) # monochromatic
                                                         # photon flux
-                                                    
-        self.bluest = min(self.lc['wave_eff'])
-        self.reddest = max(self.lc['wave_eff'])
-
 
     def _create_model(self, source=None):
         """If source is None, use Hsiao."""
@@ -237,15 +233,6 @@ class FitContext(object):
         # interpolate
         pf = self.hsiao._passed_flux
         sedw = self.gp.predict(self.gp_xstar)
-
-        bluepred = self.gp.predict([(phase, self.bluest) for phase in self.hsiao._phase])
-        redpred = self.gp.predict([(phase, self.reddest) for phase in self.hsiao._phase])
-
-        sedw[self.gp_xstar[:, 1] < self.bluest] 
-
-        # compute XX and YY
-        sedw[:, :XX] = sedw[:, x]
-        sedw[:, YY:] = sedw[:, y]
 
         flux = self.amplitude * sedw * pf 
         bolo = np.sum(flux * self.hsiao_binw, axis=1)
