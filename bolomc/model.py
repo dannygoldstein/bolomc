@@ -15,9 +15,62 @@ from burns import *
 from exceptions import *
 from distributions import TruncNorm
 
+######################################################
+# CONSTANTS ##########################################
+######################################################
+
+h = 6.62606885e-27 # erg s
+c = 2.99792458e10  # cm / s
+
+######################################################
+
 def filter_to_wave_eff(filt):
     filt = sncosmo.get_bandpass(filt)
     return filt.wave_eff
+
+def compute_ratio(band, type='flux'):
+
+    """Compute 
+   
+        S alpha(\lambda) T(\lambda) d\lambda 
+        ------------------------------------
+              S T(\lambda) d\lambda
+   
+    if `type` == 'flux', or
+
+        S \lambda \alpha(\lambda) T(\lambda) / (hc) d\lambda
+        ----------------------------------------------------
+                   S T(\lambda) d\lambda
+    
+    if `type` == 'photon',
+
+    where T and alpha are the transmission function and standard
+    spectrum of `band`, respectively."""
+
+    band = sncosmo.get_bandpass(band)
+    sp = magsys.standards[band.name] # flux-calibrated standard spectrum
+    binw = np.gradient(sp.wave) # should be 10AA
+
+    # interpolate the bandpass wavelength grid to the spectrum
+    # wavelength grid, setting the transmission to 0. at wavelengths
+    # that are beyond the grid defining the bandpass
+
+    binterp = np.interp(sp.wave, band.wave, band.trans, left=0., right=0.)
+    
+    # compute the product alpha(\lambda) d\lambda
+    
+    prod = binterp * binw
+    
+    # do the first integral 
+    if type == 'flux':
+        numerator = np.sum(sp.flux * prod) 
+    elif type == 'photon':
+        numerator = np.sum(sp.flux * sp.wave * prod) / (h * c)
+    
+    # do the second integral
+    denomenator = np.sum(prod)
+    
+    return numerator / denomenator
 
 #        t,  lambda
 TH_LO = [1e-2, 1e-2]
@@ -78,24 +131,22 @@ class FitContext(object):
 
         self.lc['mag'] = -2.5 * np.log10(self.lc['flux']) + self.lc['zp']
         magsys = sncosmo.get_magsystem('csp')
-        self.lc['ms'] = [magsys.standard_mag(band) for band in self.lc['filter']]
+        self.lc['ms'] = map(magsys.standard_mag, self.lc['filter'])
         
         self.hsiao_binw = np.gradient(self.hsiao._wave)
         
-        self.ratio = {}
-        for band in self.bands:
-            sp = magsys.standards[band.name]
-            binw = np.gradient(sp.wave)
-            binterp = np.interp(sp.wave, band.wave, band.trans)
-            prod = binterp * binw
-            self.ratio[band.name] = np.sum(sp.flux * prod) / np.sum(prod)
+        # compute the band ratio once for each band 
+        self.ratio = {band.name : compute_ratio(band, type='photon') \
+                      for band in self.bands}
 
         self.lc['ratio'] = [self.ratio[filt] for filt in self.lc['filter']]
 
-        ### re-examine this
+        ### TODO:: Check this
         self.lc['mjd'] = self.lc['mjd'] - self.t0
 
         self.obs_x = np.asarray(zip(self.lc['mjd'], self.lc['wave_eff']))
+
+        # TODO:: Check this
         self.rest_x = self.obs_x / (1 + self.lc.meta['zcmb'])
 
         self.gp_xstar = np.asarray(list(product(self.hsiao._phase,
@@ -106,7 +157,13 @@ class FitContext(object):
         self.numer = 10**(0.4 * (self.lc['ms'] - self.lc['mag'])) * \
                      self.lc['ratio'] * (1 + self.lc.meta['zcmb'])
         
-        self.S_R = np.asarray([self.hsiao.flux(*tup) * self.amplitude for tup in self.rest_x])
+        self.S_R = np.asarray([self.hsiao.flux(*tup) * \ 
+                               self.amplitude * tup[1] / (h * c) \
+                               for tup in self.rest_x]) # monochromatic
+                                                        # photon flux
+                                                    
+        self.bluest = min(self.lc['wave_eff'])
+        self.reddest = max(self.lc['wave_eff'])
 
 
     def _create_model(self, source=None):
@@ -179,7 +236,17 @@ class FitContext(object):
     
         # interpolate
         pf = self.hsiao._passed_flux
-        sedw = self.gp.predict(self.gp_xstar).reshape(pf.shape)
+        sedw = self.gp.predict(self.gp_xstar)
+
+        bluepred = self.gp.predict([(phase, self.bluest) for phase in self.hsiao._phase])
+        redpred = self.gp.predict([(phase, self.reddest) for phase in self.hsiao._phase])
+
+        sedw[self.gp_xstar[:, 1] < self.bluest] 
+
+        # compute XX and YY
+        sedw[:, :XX] = sedw[:, x]
+        sedw[:, YY:] = sedw[:, y]
+
         flux = self.amplitude * sedw * pf 
         bolo = np.sum(flux * self.hsiao_binw, axis=1)
         return bolo

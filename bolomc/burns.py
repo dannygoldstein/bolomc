@@ -69,6 +69,8 @@ def get_hostrv_prior(name, rv_bintype, dust_type):
         mean = float(mean)
         low, high = map(float, lims[1:-1].split('}_{'))
         avg_unc = (low + high) / 2.
+
+        # TODO: implement asymmetric priors
         dist = TruncNorm(0, np.inf, mean, avg_unc)
     return dist
 
