@@ -5,12 +5,14 @@ import numpy as np
 from bolomc import model
 from matplotlib import pyplot as plt
 
+from numpy import testing
+
 from util_test import *
 
 #sns.set_style('ticks')
 
-SPARSE_LC = path('SN2005el')
-fc = model.FitContext(SPARSE_LC)
+LC = path('SN2005el')
+fc = model.FitContext(LC)
 
 def testWarpSparse():
     
@@ -22,7 +24,7 @@ def testWarpSparse():
     fc.one_iteration()
     sedw = fc.sedw.T
     res = ax.pcolorfast(fc.hsiao._wave, fc.hsiao._phase, sedw.T, cmap='RdBu',
-                        vmin=-5, vmax=5)
+                        vmin=-2, vmax=2)
     
     ax.plot(fc.lc['wave_eff'], fc.lc['mjd'], 'ro')
     ax.invert_yaxis()
@@ -32,5 +34,21 @@ def testWarpSparse():
     fig.savefig(os.path.join(outdir, 'sedwarp.pdf'))
 
     
+def testGPPhaseHyper():
     
+    l_p = np.sqrt(1./fc.gp.theta_[0])
+
+    testing.assert_array_less(l_p, 1e4)
+    testing.assert_array_less(1, l_p)
+
+def testGPWavelengthHyper():
+
+    l_w = np.sqrt(1./fc.gp.theta_[1])
     
+    testing.assert_array_less(l_w, 1e4)
+    testing.assert_array_less(100, l_w)
+
+
+def testPos():
+    
+    assert (fc.sedw >= 0).all()
