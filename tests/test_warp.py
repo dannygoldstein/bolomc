@@ -3,6 +3,8 @@ import sncosmo
 import numpy as np
 #import seaborn as sns
 from bolomc import model
+
+import matplotlib.cm as cm
 from matplotlib import pyplot as plt
 
 from numpy import testing
@@ -23,11 +25,23 @@ def testWarpSparse():
     
     fc.one_iteration()
     sedw = fc.sedw.T
-    res = ax.pcolorfast(fc.hsiao._wave, fc.hsiao._phase, sedw.T, cmap='RdBu',
-                        vmin=-2, vmax=2)
+    
+    base_cmap = cm.get_cmap('viridis')
+
+    vmin = -1.
+    vmax = 2.
+    
+
+    new_cmap = shiftedColorMap(base_cmap, start=0., midpoint=center(vmax,vmin),
+                               stop=1.)
+    res = ax.pcolorfast(fc.hsiao._wave, fc.hsiao._phase, sedw.T, cmap=new_cmap,
+                        vmin=vmin, vmax=vmax)
     
     ax.plot(fc.lc['wave_eff'], fc.lc['mjd'], 'ro')
     ax.invert_yaxis()
+    
+    ax.set_xlabel('wavelength (AA)')
+    ax.set_ylabel('phase (days)')
     
     fig.colorbar(res)
     
