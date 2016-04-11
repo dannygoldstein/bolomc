@@ -21,6 +21,7 @@ from distributions import TruncNorm
 
 h = 6.62606885e-27 # erg s
 c = 2.99792458e10  # cm / s
+AA_TO_CM = 1e-8 # dimensionless
 magsys = sncosmo.get_magsystem('csp')
 
 ######################################################
@@ -68,7 +69,7 @@ def compute_ratio(band, type='flux'):
     if type == 'flux':
         numerator = np.sum(sp.flux * prod) 
     elif type == 'photon':
-        numerator = np.sum(sp.flux * sp.wave * prod) / (h * c)
+        numerator = np.sum(sp.flux * sp.wave * prod) / (h * c) * AA_TO_CM
     
     # do the second integral
     denomenator = np.sum(prod)
@@ -163,7 +164,7 @@ class FitContext(object):
                      self.lc['ratio'] * (1 + self.lc.meta['zcmb'])
         
         self.S_R = np.asarray([self.hsiao.flux(*tup) * \
-                               self.amplitude * tup[1] / (h * c) \
+                               self.amplitude * tup[1] / (h * c) * AA_TO_CM \
                                for tup in self.rest_x]) # monochromatic
                                                         # photon flux
 
