@@ -21,6 +21,7 @@ from distributions import TruncNorm
 
 h = 6.62606885e-27 # erg s
 c = 2.99792458e10  # cm / s
+magsys = sncosmo.get_magsystem('csp')
 
 ######################################################
 
@@ -56,9 +57,11 @@ def compute_ratio(band, type='flux'):
     # that are beyond the grid defining the bandpass
 
     binterp = np.interp(sp.wave, band.wave, band.trans, left=0., right=0.)
+
+    # ensure all transmissions are positive
+    binterp[binterp < 0] = 0
     
-    # compute the product alpha(\lambda) d\lambda
-    
+    # compute the product alpha(\lambda) d\lambda    
     prod = binterp * binw
     
     # do the first integral 
@@ -81,9 +84,11 @@ NUG = 1e-5
 
 class FitContext(object):
 
-    """Implementation of the PGM (Figure 1) from Goldstein & Kasen
-    (2016). Defines a set of priors and a likelihood function for
-    predicting bolometric light curves given broadband CSP photometry.
+    """Implementation of the monte carlo model (Figure 1) from Goldstein &
+    Kasen (2016). Defines a set of priors and a likelihood function
+    for predicting bolometric light curves given broadband CSP
+    photometry.
+
     """
     
     def __init__(self, lcfile, dust_type=sncosmo.OD94Dust, exclude_bands=[],
@@ -130,7 +135,6 @@ class FitContext(object):
                                   nugget=NUG)
 
         self.lc['mag'] = -2.5 * np.log10(self.lc['flux']) + self.lc['zp']
-        magsys = sncosmo.get_magsystem('csp')
         self.lc['ms'] = map(magsys.standard_mag, self.lc['filter'])
         
         self.hsiao_binw = np.gradient(self.hsiao._wave)
@@ -157,7 +161,7 @@ class FitContext(object):
         self.numer = 10**(0.4 * (self.lc['ms'] - self.lc['mag'])) * \
                      self.lc['ratio'] * (1 + self.lc.meta['zcmb'])
         
-        self.S_R = np.asarray([self.hsiao.flux(*tup) * \ 
+        self.S_R = np.asarray([self.hsiao.flux(*tup) * \
                                self.amplitude * tup[1] / (h * c) \
                                for tup in self.rest_x]) # monochromatic
                                                         # photon flux
@@ -220,6 +224,7 @@ class FitContext(object):
                                                          # just get
                                                          # the
                                                          # transmission
+
         D_O = mw_dust.propagate(self.obs_x[:, 1], 1.)    # ditto
         
         denom = D_R * self.S_R * D_O
@@ -232,9 +237,9 @@ class FitContext(object):
     
         # interpolate
         pf = self.hsiao._passed_flux
-        sedw = self.gp.predict(self.gp_xstar)
+        self.sedw = self.gp.predict(self.gp_xstar).reshape(pf.shape)
 
-        flux = self.amplitude * sedw * pf 
+        flux = self.amplitude * self.sedw * pf 
         bolo = np.sum(flux * self.hsiao_binw, axis=1)
         return bolo
 
