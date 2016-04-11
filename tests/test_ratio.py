@@ -5,20 +5,9 @@ import seaborn as sns
 from bolomc import model
 from matplotlib import pyplot as plt
 
+from util_test import *
+
 sns.set_style('ticks')
-
-def sever(s):
-    splstr = s.split('/')
-    dir = '/'.join(splstr[:-1])
-    f = splstr[-1]
-    return dir, f
-
-pwd, _ = sever(__file__)
-
-def path(snname):
-    suffix = 'opt+nir_photo.dat'
-    prefix = '../data/CSP_Photometry_DR2/%s'
-    return os.path.join(pwd, prefix % (snname + suffix))
 
 LC_W_NEG_RATIO = path('SN2005el')
 LC_W_POS_RATIO = path('SN2009F')
@@ -29,7 +18,7 @@ fc_pos = model.FitContext(LC_W_POS_RATIO)
 fc_neg = model.FitContext(LC_W_NEG_RATIO)
 
 def testNegRatio():
-    assert any(fc_neg.lc['ratio'] < 0)
+    assert not any(fc_neg.lc['ratio'] < 0)
 
 def testNeg():
     for band in fc_neg.bands:
@@ -45,11 +34,13 @@ def testInterp():
 
     magsys = sncosmo.get_magsystem('csp')
 
+    outdir = 'output/testInterp'
+    os.mkdir(outdir)
+
     for band in fc_neg.bands:
         sp = magsys.standards[band.name]
         binw = np.gradient(sp.wave)
-        binterp = np.interp(sp.wave, band.wave, band.trans)
-        prod = binterp * binw
+        binterp = np.interp(sp.wave, band.wave, band.trans, left=0., right=0.)
 
         fig, ax = plt.subplots(figsize=(8,6))
         ax2 = ax.twinx()
@@ -59,9 +50,19 @@ def testInterp():
         ax2.semilogx(sp.wave, sp.flux, color='k')
         ax.set_xlabel('wavelength (AA)')
         ax.set_title(band.name)
+
+        ylim1 = ax.get_ylim()[1]
+        ylim2 = ax2.get_ylim()[1]
         
-        ax.set_xlim(0, ax.get_xlim()[1])
-        ax2.set_xlim(0, ax2.get_xlim()[1])
+        #ax.axhline(0, linestyle='--', color='k')
+
+        #ax.set_ylim(-0.1, ylim1)
+        #ax2.set_ylim(-0.1, ylim2)
+
+        ax.axhline(y=0., linewidth=0.5, linestyle='--', color='k')
         
-        fig.savefig('output/%s.pdf' % band.name)
+        ax.set_ylim(-0.1, 1.)
+        ax2.set_ylim(-0.1 * ylim2, ylim2)
+
+        fig.savefig(os.path.join(outdir, '%s.pdf' % band.name))
         del fig
