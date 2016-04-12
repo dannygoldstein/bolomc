@@ -7,6 +7,8 @@ from bolomc import model
 import matplotlib.cm as cm
 from matplotlib import pyplot as plt
 
+from matplotlib.backends.backend_pdf import PdfPages
+
 from numpy import testing
 
 from util_test import *
@@ -16,11 +18,12 @@ from util_test import *
 LC = path('SN2005el')
 fc = model.FitContext(LC)
 
+outdir = 'output/testWarpSparse'
+os.mkdir(outdir)
+
+
 def testWarpSparse():
-    
-    outdir = 'output/testWarpSparse'
-    os.mkdir(outdir)
-    
+        
     fig, ax = plt.subplots(figsize=(5, 10))
     
     fc.one_iteration()
@@ -66,3 +69,35 @@ def testGPWavelengthHyper():
 def testPos():
     
     assert (fc.sedw >= 0).all()
+
+def testWarpAcc():
+
+    gp_y = np.squeeze((fc.gp.y * fc.gp.y_std) + fc.gp.y_mean)
+    gp_X = (fc.gp.X * fc.gp.X_std) + fc.gp.X_mean
+    
+    with PdfPages(os.path.join(outdir, 'testWarpAcc.pdf')) as pdf:
+        
+        for mjd, mjdgroup in fc.lc.to_pandas().groupby('mjd'):
+            
+            x_star = [(mjd, w) for w in fc.hsiao._wave]
+            pred = fc.gp.predict(x_star)
+
+            fig, ax = plt.subplots()
+            ax.plot(fc.hsiao._wave, pred, 'k')
+            
+            ind = fc.obs_x[:, 0] == mjd
+            
+            #wave = gp_X[ind, 1]
+            ratio = gp_y[ind]
+            
+            ax.plot(mjdgroup['wave_eff'], ratio, 'ro')
+            ax.set_title(str(mjd))
+
+            ax.set_xlabel('wavelength (AA)')
+            ax.set_ylabel('ratio')
+            
+            pdf.savefig(fig)
+            
+            
+            
+            
