@@ -6,10 +6,12 @@ from .exceptions import BoundsError
 
 class ParamVec(object):
     
-    def __init__(self, vec):
+    def __init__(self, vec, np, nl):
         self.vec = vec
         self._check_bounds()
-        
+        self.np = np
+        self.nl = nl
+
     def _check_bounds(self):
         
         ermsg = '%s is out of bounds (%.4f, %.4f): %s'
@@ -22,8 +24,7 @@ class ParamVec(object):
             raise BoundsError(ermsg % ('rv', 0, np.inf, self.rv))
         if self.amplitude <= 0:
             raise BoundsError(ermsg % ('amplitude', 0, np.inf, self.amplitude))
-            
-    
+                
     @property
     def amplitude(self):
         """Hsiao amplitude."""
@@ -54,4 +55,4 @@ class ParamVec(object):
     
     @property
     def sed_warp(self):
-        return self.vec[6:]
+        return self.vec[6:].reshape(np, nl)
