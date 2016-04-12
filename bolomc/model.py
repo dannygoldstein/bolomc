@@ -77,9 +77,9 @@ def compute_ratio(band, type='flux'):
     return numerator / denomenator
 
 #        t,  lambda
-TH_LO = [1e-6, 1e-8]
-TH_HI = [30**-2, 4e-4]
-TH_0  = [1e-4, 1e-6]
+TH_LO = [10**-2, 3e3**-2]
+TH_HI = [0.5**-2, 1e2**-2]
+TH_0  = [3**-2, 5e2**-2]
 
 NUG = 1e-5
 
@@ -133,8 +133,8 @@ class FitContext(object):
         self.gp = GaussianProcess(thetaL=TH_LO, 
                                   thetaU=TH_HI, 
                                   theta0=TH_0, 
-                                  nugget=NUG) #,
-        #                         normalize=False)
+                                  nugget=NUG,
+                                  normalize=False)
 
         self.lc['mag'] = -2.5 * np.log10(self.lc['flux']) + self.lc['zp']
         self.lc['ms'] = map(magsys.standard_mag, self.lc['filter'])

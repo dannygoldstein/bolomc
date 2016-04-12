@@ -18,7 +18,7 @@ from util_test import *
 LC = path('SN2005el')
 fc = model.FitContext(LC)
 
-outdir = 'output/testWarpSparse'
+outdir = 'output/testWarp'
 os.mkdir(outdir)
 
 
@@ -55,14 +55,14 @@ def testGPPhaseHyper():
     
     l_p = np.sqrt(1./fc.gp.theta_[0])
 
-    testing.assert_array_less(l_p, 1e4)
-    testing.assert_array_less(1, l_p)
+    testing.assert_array_less(l_p, 10)
+    testing.assert_array_less(0.5, l_p)
 
 def testGPWavelengthHyper():
 
     l_w = np.sqrt(1./fc.gp.theta_[1])
     
-    testing.assert_array_less(l_w, 1e4)
+    testing.assert_array_less(l_w, 3000)
     testing.assert_array_less(100, l_w)
 
 
@@ -80,10 +80,12 @@ def testWarpAcc():
         for mjd, mjdgroup in fc.lc.to_pandas().groupby('mjd'):
             
             x_star = [(mjd, w) for w in fc.hsiao._wave]
-            pred = fc.gp.predict(x_star)
+            pred, mse = fc.gp.predict(x_star, eval_MSE=True)
 
             fig, ax = plt.subplots()
             ax.plot(fc.hsiao._wave, pred, 'k')
+            ax.fill_between(fc.hsiao._wave, pred + np.sqrt(mse),
+                            pred - np.sqrt(mse), color='b', alpha=0.5)
             
             ind = fc.obs_x[:, 0] == mjd
             
@@ -98,6 +100,4 @@ def testWarpAcc():
             
             pdf.savefig(fig)
             
-            
-            
-            
+            del fig
