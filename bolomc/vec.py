@@ -20,34 +20,37 @@ class ParamVec(object):
             raise BoundsError(ermsg % ('llam', 0, np.inf, self.llam))
         if self.rv <= 0:
             raise BoundsError(ermsg % ('rv', 0, np.inf, self.rv))
+        if self.amplitude <= 0:
+            raise BoundsError(ermsg % ('amplitude', 0, np.inf, self.amplitude))
+            
     
     @property
-    def x0(self):
+    def amplitude(self):
+        """Hsiao amplitude."""
         return self.vec[0]
 
     @propety
-    def x1(self):
-        return self.vec[1]
-        
-    @property
     def t0(self):
-        return self.vec[2]
-        
+        """Hsiao t0."""
+        return self.vec[1]
+                
     @property
-    def lt(self):
-        return self.vec[3]
+    def lp(self):
+        return self.vec[2]
     
     @property
     def llam(self):
-        return self.vec[4]
+        return self.vec[3]
         
     @property
     def rv(self):
-        return self.vec[5]
+        # host
+        return self.vec[4]
         
     @property
     def ebv(self):
-        return self.vec[6]
+        # host
+        return self.vec[5]
     
     @property
     def sed_warp(self):
