@@ -32,7 +32,7 @@ class TruncNorm(object):
         return stats.truncnorm.logpdf(x, self.a, self.b, loc=self.loc,
                                       scale=self.scale)
 
-    def rvs(self, n=1):
+    def rvs(self, n=None):
         return stats.truncnorm.rvs(self.a, self.b, loc=self.loc, 
                                    scale=self.scale, size=n)
 

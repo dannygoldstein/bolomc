@@ -13,8 +13,9 @@ from itertools import product
 from scipy.interpolate import RectBivariateSpline
 
 from burns import *
-from exceptions import *
+from errors import *
 from distributions import TruncNorm, stats
+from vec import ParamVec
 
 import emcee
 
@@ -25,6 +26,7 @@ import emcee
 h = 6.62606885e-27 # erg s
 c = 2.99792458e10  # cm / s
 AA_TO_CM = 1e-8 # dimensionless
+ETA_SQ = 0.1
 magsys = sncosmo.get_magsystem('csp')
 
 ######################################################
@@ -88,7 +90,7 @@ class FitContext(object):
 
     """
     
-    def __init__(self, lcfile, np, nl, 
+    def __init__(self, lcfile, nphase, nlam,
                  dust_type=sncosmo.OD94Dust, 
                  exclude_bands=[],
                  rv_bintype='gmm',
@@ -97,8 +99,9 @@ class FitContext(object):
         self.dust_type = dust_type
         self.exclude_bands = exclude_bands
         
-        self.np = np
-        self.nl = nl
+        self.np = nphase
+        self.nl = nlam
+        self.outdir = outdir
 
         self.lc = sncosmo.read_lc(lcfile, format='csp')
         self.lc['wave_eff'] = map(filter_to_wave_eff, self.lc['filter'])
@@ -134,10 +137,10 @@ class FitContext(object):
 
         # set up coarse grid
         self.xstar_p = np.linspace(self.hsiao._phase[0], 
-                                   self.hsiao._phase[1], 
+                                   self.hsiao._phase[-1], 
                                    self.np)
         self.xstar_l = np.linspace(self.hsiao._wave[0], 
-                                   self.hsiao._wave[1], 
+                                   self.hsiao._wave[-1], 
                                    self.nl)
         
         # this is the coarse grid
@@ -146,18 +149,16 @@ class FitContext(object):
 
         # get an initial guess for amplitude and t0
         
-        empty_arr = np.zeros(4 + self.np * self.nl)
-        guess_vec = ParamVec(empty_arr, self.np, self.nl)
+        guess_mod = sncosmo.Model(source=self.hsiao,
+                                  effects=[self.dust_type(), sncosmo.F99Dust()],
+                                  effect_names=['host', 'mw'],
+                                  effect_frames=['rest', 'obs'])
 
-        guess_vec.ebv = self.ebv_prior.rvs()
-        guess_vec.rv = self.rv_prior.rvs()
-        
-        # harmless hack to avoid bounds errors
-        guess_vec.lt = 0.1
-        guess_vec.llam = 0.1
+        guess_mod.set(z=self.lc.meta['zcmb'])
+        guess_mod.set(hostebv=self.ebv_prior.rvs())
+        guess_mod.set(hostr_v=self.rv_prior.rvs())
+        guess_mod.set(mwebv=self.mwebv)
 
-        guess_mod = self._create_model(guess_vec)
-        
         res, fitted_model = sncosmo.fit_lc(self.lc, guess_mod, ['amplitude','t0'])
         if not res['success']:
             raise FitError(res['message'])
@@ -253,7 +254,7 @@ class FitContext(object):
         # these are fixed
         
         model.set(amplitude=self.amplitude)
-        model.set(t0=self.t0)
+        #model.set(t0=self.t0)
 
         return model
 
@@ -278,7 +279,9 @@ class FitContext(object):
                               self.lc['mjd'])
 
         # model / data likelihood calculation 
-        sqerr = ((flux - self.lc['flux']) / self.lc['fluxerr'])**2
+        sqerr = stats.norm.logpdf(flux, 
+                                  loc=self.lc['flux'], 
+                                  scale=self.lc['fluxerr'])
         lp__ += np.sum(sqerr)
 
         # gaussian process likelihood calculation
@@ -292,7 +295,7 @@ class FitContext(object):
 
         l = np.asarray([params.lp, params.llam])
         sigma = self.diffmat / l
-        sigma = np.exp(-np.sum(sigma * sigma, axis=-1))
+        sigma =  np.exp(-np.sum(sigma * sigma, axis=-1))
         sigma += np.diag(np.ones_like(y) * 1e-5)
         mu = np.zeros_like(y)
         
@@ -308,7 +311,7 @@ class FitContext(object):
 
     def __call__(self, params):
         try:
-            vec = ParamVec(params, self.np, self.nl):
+            vec = ParamVec(params, self.np, self.nl)
         except BoundsError as e:
             return -np.inf
         return self.logprior(vec) + self.loglike(vec)
@@ -317,17 +320,12 @@ class FitContext(object):
     def D(self):
         return 4 + self.np * self.nl
     
-    
 
-if __name__ == "__main__":
+def main(lc_filename, nph, nl):
     
     # Fit a single light curve with the model.
 
-    lc_filename = sys.argv[1]
-    np = int(sys.argv[2])
-    nl = int(sys.argv[3])
-
-    fc = FitContext(lc_filename, np, nl)
+    fc = FitContext(lc_filename, nph, nl)
 
     # create initial parameter vectors
 
@@ -335,7 +333,7 @@ if __name__ == "__main__":
     pvecs = list()
 
     diffs = fc.xstar[:, None] - fc.xstar[None, :]
-    nmat = np.diag(np.ones(sigma.shape[0]) * 1e-5)
+    nmat = np.diag(np.ones(diffs.shape[0]) * 1e-5)
     
     for i in range(nwal):
         lp = fc.lp_prior.rvs()
@@ -345,9 +343,9 @@ if __name__ == "__main__":
         
         l = np.asarray([lp, llam])
         sigma = diffs / l
-        sigma = np.exp(-np.sum(sigma * sigma, axis=-1))
+        sigma = ETA_SQ * np.exp(-np.sum(sigma * sigma, axis=-1))
         sigma += nmat
-        mu = np.zeros(sigma.shape[0])
+        mu = np.ones(sigma.shape[0])
         sedw = stats.multivariate_normal.rvs(mean=mu, cov=sigma)
         
         pvecs.append(np.concatenate(([lp, llam, rv, ebv], sedw)))
@@ -356,15 +354,17 @@ if __name__ == "__main__":
     sampler = emcee.EnsembleSampler(nwal, fc.D, fc)
 
     # Do burn-in.
+    sgen = sampler.sample(pvecs, iterations=1000, storechain=False)
 
-    sgen_burn = sampler.sample(pvecs, iterations=1000, storechain=False)
-    for result in sgen:
-        pos, prob, state, blobs = result
+    '''
+    for result in sgen_burn:
+        pos, prob, state = result
+    '''
 
     # Get set up to collect the output of the sampler. 
     
     if not os.path.exists(fc.outdir):
-        os.mkdir(outdir)
+        os.mkdir(fc.outdir)
         
     chain_fname = os.path.join(fc.outdir, 'chain.dat')
     bolo_fname = os.path.join(fc.outdir, 'bolo.dat')
@@ -374,21 +374,24 @@ if __name__ == "__main__":
         pass
 
     # Define a helper function for the output formatting. 
-    stringify = lambda array: " ".join(["%.5f" % e for e in array])
+    stringify = lambda array: " ".join(["%.5e" % e for e in array])
             
     # Set up sample generator.
+    '''
     sgen = sampler.sample(pos, 
                           iterations=1000,
                           rstate0=state,
                           lnprob0=prob,
                           storechain=False)
 
+    '''
+
     # Sample and record the output. 
     for i, result in enumerate(sgen):
-        pos, lnprob, rstate, blobs = result
+        pos, lnprob, rstate = result
         
         # Dump chain state. 
-        with open(chain_fname, 'a') as c:
+        with open(chain_fname, 'a') as f:
             for k in range(pos.shape[0]):
                 f.write("{3:4d} {0:4d} {2:f} {1:s}\n"
                         .format(k, stringify(pos[k]), lnprob[k], i))
@@ -404,3 +407,10 @@ if __name__ == "__main__":
                 f.write("{0:4d} {1:4d} {2:s}\n"
                         .format(i, k, stringify(bolo)))
 
+
+if __name__ == "__main__":
+
+    lc_filename = sys.argv[1]
+    nph = int(sys.argv[2])
+    nl = int(sys.argv[3])
+    main(lc_filename, nph, nl)

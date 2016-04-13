@@ -2,13 +2,15 @@
 __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Parameter vector class for MCMC sampling.'
 
-from .exceptions import BoundsError
+import numpy as np
+from errors import BoundsError
 
 class ParamVec(object):
         
-    def __init__(self, vec, np, nl):
+    def __init__(self, vec, np, nl, check_bounds=True):
         self.vec = vec
-        self._check_bounds()
+        if check_bounds:
+            self._check_bounds()
         self.np = np
         self.nl = nl
 
@@ -17,16 +19,12 @@ class ParamVec(object):
         ermsg = '%s is out of bounds (%.4f, %.4f): %s'
         inclermsg = '%s is out of bounds [%.4f, %.4f): %s'
         
-        if self.lt <= 0:
-            raise BoundsError(ermsg % ('lt', 0, np.inf, self.lt))
+        if self.lp <= 0:
+            raise BoundsError(ermsg % ('lp', 0, np.inf, self.lp))
         if self.llam <= 0:
             raise BoundsError(ermsg % ('llam', 0, np.inf, self.llam))
         if self.rv <= 0:
             raise BoundsError(ermsg % ('rv', 0, np.inf, self.rv))
-        if self.amplitude < 0:
-            raise BoundsError(inclermsg % ('amplitude', 0, 
-                                           np.inf, self.amplitude))
-
                 
     @property
     def lp(self):
@@ -65,6 +63,12 @@ class ParamVec(object):
     @property
     def sedw(self):
         return self.vec[4:].reshape(self.np, self.nl)
+
+    @sedw.setter
+    def sedw(self, x):
+        view = self.vec[4:].reshape(self.np, self.nl)
+        view[:, :] = x
+        self.vec[4:] = view.reshape(self.np * self.nl)
         
     @property
     def D(self):
