@@ -64,6 +64,8 @@ class ParamVec(object):
     
     @property
     def sedw(self):
-        return self.vec[4:].reshape(np, nl)
+        return self.vec[4:].reshape(self.np, self.nl)
         
-    
+    @property
+    def D(self):
+        return 4 + self.sedw.size

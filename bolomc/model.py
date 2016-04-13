@@ -15,6 +15,8 @@ from burns import *
 from exceptions import *
 from distributions import TruncNorm, stats
 
+import emcee
+
 ######################################################
 # CONSTANTS ##########################################
 ######################################################
@@ -85,8 +87,11 @@ class FitContext(object):
 
     """
     
-    def __init__(self, lcfile, np, nl, dust_type=sncosmo.OD94Dust, exclude_bands=[],
-                 rv_bintype='gmm'):
+    def __init__(self, lcfile, np, nl, 
+                 dust_type=sncosmo.OD94Dust, 
+                 exclude_bands=[],
+                 rv_bintype='gmm',
+                 outdir='output'):
 
         self.dust_type = dust_type
         self.exclude_bands = exclude_bands
@@ -120,6 +125,11 @@ class FitContext(object):
         self.rv_prior  = get_hostrv_prior(self.lc.meta['name'],
                                           self.rv_bintype,
                                           self.dust_type)
+
+        self.lp_prior = TruncNorm(0, np.inf, 3.5, 0.3)
+
+        # This may be too tight
+        self.llam_prior = TruncNorm(0, np.inf, 600., 15.)
 
         # set up coarse grid
         self.xstar_p = np.linspace(self.hsiao._phase[0], 
@@ -181,6 +191,7 @@ class FitContext(object):
         # This is defined here and used repeatedly in the loglike
         # calculation.
         self.x = np.vstack((self.rest_x, self.xstar))
+        self.diffmat = self.x[:, None] - self.x[None, :]
 
         # Deprecated 
 
@@ -279,8 +290,8 @@ class FitContext(object):
         y = np.concatenate((ratio_scl, sedw_scl.ravel()))
 
         l = np.asarray([params.lp, params.llam])
-        sigma = (self.x[:, None] - self.x[None, :]) / l
-        sigma = np.exp(-np.sum(sigma * sigma), axis=-1)
+        sigma = self.diffmat / l
+        sigma = np.exp(-np.sum(sigma * sigma, axis=-1))
         sigma += np.diag(np.ones_like(y) * 1e-5)
         mu = np.zeros_like(y)
         
@@ -291,7 +302,7 @@ class FitContext(object):
     def bolo(self, params):
         """Compute a bolometric flux curve for `params`."""
         flux = self._regrid_hsiao(params.sedw) * self.hsiao._passed_flux
-        flux *= params.amplitude
+        flux *= self.amplitude
         return np.sum(flux * self.hsiao_binw, axis=1)
 
     def __call__(self, params):
@@ -300,6 +311,10 @@ class FitContext(object):
         except BoundsError as e:
             return -np.inf
         return self.logprior(vec) + self.loglike(vec)
+
+    @property
+    def D(self):
+        return 4 + self.np * self.nl
     
     
 
@@ -308,7 +323,83 @@ if __name__ == "__main__":
     # Fit a single light curve with the model.
 
     lc_filename = sys.argv[1]
-    fc = FitContext(lc_filename)
+    np = int(sys.argv[2])
+    nl = int(sys.argv[3])
+
+    fc = FitContext(lc_filename, np, nl)
+
+    # create initial parameter vectors
+
+    nwal = 2 * fc.D
+    pvecs = list()
+
+    diffs = fc.xstar[:, None] - fc.xstar[None, :]
+    nmat = np.diag(np.ones(sigma.shape[0]) * 1e-5)
     
-    # Run the model. 
-    lcs = np.asarray([fc.one_iteration() for i in range(500)])
+    for i in range(nwal):
+        lp = fc.lp_prior.rvs()
+        llam = fc.llam_prior.rvs()
+        rv = fc.rv_prior.rvs()
+        ebv = fc.ebv_prior.rvs()
+        
+        l = np.asarray([lp, llam])
+        sigma = diffs / l
+        sigma = np.exp(-np.sum(sigma * sigma, axis=-1))
+        sigma += nmat
+        mu = np.zeros(sigma.shape[0])
+        sedw = stats.multivariate_normal.rvs(mean=mu, cov=sigma)
+        
+        pvecs.append(np.concatenate(([lp, llam, rv, ebv], sedw)))
+    
+    # Set up the sampler. 
+    sampler = emcee.EnsembleSampler(nwal, fc.D, fc)
+
+    # Do burn-in.
+
+    sgen_burn = sampler.sample(pvecs, iterations=1000, storechain=False)
+    for result in sgen:
+        pos, prob, state, blobs = result
+
+    # Get set up to collect the output of the sampler. 
+    
+    if not os.path.exists(fc.outdir):
+        os.mkdir(outdir)
+        
+    chain_fname = os.path.join(fc.outdir, 'chain.dat')
+    bolo_fname = os.path.join(fc.outdir, 'bolo.dat')
+
+    # Clear the files if they already exist. 
+    with open(chain_fname, 'w'), open(bolo_fname, 'w'):
+        pass
+
+    # Define a helper function for the output formatting. 
+    stringify = lambda array: " ".join(["%.5f" % e for e in array])
+            
+    # Set up sample generator.
+    sgen = sampler.sample(pos, 
+                          iterations=1000,
+                          rstate0=state,
+                          lnprob0=prob,
+                          storechain=False)
+
+    # Sample and record the output. 
+    for i, result in enumerate(sgen):
+        pos, lnprob, rstate, blobs = result
+        
+        # Dump chain state. 
+        with open(chain_fname, 'a') as c:
+            for k in range(pos.shape[0]):
+                f.write("{3:4d} {0:4d} {2:f} {1:s}\n"
+                        .format(k, stringify(pos[k]), lnprob[k], i))
+
+        # Dump bolometric light curves.
+        with open(bolo_fname, 'a') as f:
+            for k in range(pos.shape[0]):
+                try:
+                    vec = ParamVec(pos[k], fc.np, fc.nl)
+                except BoundsError as e:
+                    bolo = np.zeros(fc.hsiao._phase.shape[0]) * np.nan
+                bolo = fc.bolo(vec)
+                f.write("{0:4d} {1:4d} {2:s}\n"
+                        .format(i, k, stringify(bolo)))
+
