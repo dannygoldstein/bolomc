@@ -1,3 +1,4 @@
+#!/usr/bin/env python 
 
 __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Predictive model for SN Ia bolometric light curves ' \
