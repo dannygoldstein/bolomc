@@ -166,25 +166,8 @@ class FitContext(object):
         # TODO:: check to see if this is still right
         self.amplitude = res['parameters'][2]
         self.t0 = res['parameters'][1]
-
-        # Deprecated
-
-        '''
-        self.lc['mag'] = -2.5 * np.log10(self.lc['flux']) + self.lc['zp']
-        self.lc['ms'] = map(magsys.standard_mag, self.lc['filter'])
-        ''' 
-        
         self.hsiao_binw = np.gradient(self.hsiao._wave)
         
-        # Deprecated 
-
-        '''
-        # compute the band ratio once for each band 
-        self.ratio = {band.name : compute_ratio(band, type='photon') \
-                      for band in self.bands}
-
-        self.lc['ratio'] = [self.ratio[filt] for filt in self.lc['filter']]
-        '''
 
         self.lc['mjd'] = self.lc['mjd'] - self.t0
         self.obs_x = np.asarray(zip(self.lc['mjd'], self.lc['wave_eff']))
@@ -194,20 +177,6 @@ class FitContext(object):
         # calculation.
         self.x = np.vstack((self.rest_x, self.xstar))
         self.diffmat = self.x[:, None] - self.x[None, :]
-
-        # Deprecated 
-
-        '''
-        # quantities you only need to compute once
-        self.numer = 10**(0.4 * (self.lc['ms'] - self.lc['mag'])) * \
-                     self.lc['ratio'] * (1 + self.lc.meta['zcmb'])
-        
-        self.S_R = np.asarray([self.hsiao.flux(*tup) * \
-                               self.amplitude * tup[1] / (h * c) * AA_TO_CM \
-                               for tup in self.rest_x]) # monochromatic
-                                                        # photon flux
-
-        '''
 
         
 
