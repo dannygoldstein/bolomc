@@ -370,8 +370,8 @@ def main(lc_filename, nph, nl):
     bolo_fname = os.path.join(fc.outdir, 'bolo.dat')
 
     # Clear the files if they already exist. 
-    with open(chain_fname, 'w'), open(bolo_fname, 'w'):
-        pass
+    with open(chain_fname, 'w') as f, open(bolo_fname, 'w'):
+        f.write('np=%d nl=%d\n' % (fc.np, fc.nl))
 
     # Define a helper function for the output formatting. 
     stringify = lambda array: " ".join(["%.5e" % e for e in array])
