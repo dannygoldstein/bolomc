@@ -10,7 +10,10 @@ import sncosmo
 import numpy as np
 
 from itertools import product
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline, interp1d
+from scipy.optimize import minimize
+from astropy.cosmology import Planck13
+from astropy import units as u
 
 from burns import *
 from errors import *
@@ -225,11 +228,44 @@ class FitContext(object):
 
         return lp__
 
-    def bolo(self, params):
+    def bolo(self, params, compute_luminosity=False):
         """Compute a bolometric flux curve for `params`."""
         flux = self._regrid_hsiao(params.sedw) * self.hsiao._passed_flux
         flux *= self.amplitude
-        return np.sum(flux * self.hsiao_binw, axis=1)
+        flux = np.sum(flux * self.hsiao_binw, axis=1)
+        if compute_luminosity:
+            distfac = 4 * np.pi * Planck13.luminosity_distance(self.lc.meta['zcmb']).to(u.cm).value**2
+            lum = flux * distfac
+            return lum
+        return flux
+        
+    def Lfunc(self, params):
+        x = self.hsiao._phase
+        y = self.bolo(params, compute_luminosity=True)
+        func = interp1d(x, y, kind='cubic')
+        return func
+        
+    def tpeak(self, params, retfunc=False):
+        func = self.Lfunc(params)
+        
+        def minfunc(t):
+            # objective function
+            return -func(t)
+    
+        res = minimize(minfunc, 0.)
+        if not res.success:
+            raise FitError(res.message)
+        return res.x if not retfunc else (res.x, func)
+
+    def Lpeak(self, params):
+        tpeak, func = self.tpeak(params, retfunc=True)
+        return func(tpeak)
+    
+    def dm15(self, params):
+        tpeak, func = self.tpeak(params, retfunc=True)
+        lpeak = func(tpeak)
+        l15 = func(tpeak + 15)
+        return 2.5 * np.log10(lpeak / l15)
 
     def __call__(self, params):
         try:
