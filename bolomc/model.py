@@ -116,7 +116,6 @@ class FitContext(object):
         if not res['success']:
             raise FitError(res['message'])
 
-        # TODO:: check to see if this is still right
         self.amplitude = res['parameters'][2]
         self.t0 = res['parameters'][1]
         self.hsiao_binw = np.gradient(self.hsiao._wave)
@@ -130,6 +129,7 @@ class FitContext(object):
         # calculation.
         self.x = np.vstack((self.rest_x, self.xstar))
         self.diffmat = self.x[:, None] - self.x[None, :]
+        
 
         
 
@@ -241,6 +241,29 @@ class FitContext(object):
     @property
     def D(self):
         return 4 + self.np * self.nl
+
+# Define a helper function for the output formatting. 
+stringify = lambda array: " ".join(["%.5e" % e for e in array])
+    
+def record(result, bfile, cfile, i):
+    pos, lnprob, rstate = result
+        
+        # Dump chain state. 
+        with open(cfile, 'a') as f:
+            for k in range(pos.shape[0]):
+                f.write("{3:4d} {0:4d} {2:f} {1:s}\n"
+                        .format(k, stringify(pos[k]), lnprob[k], i))
+
+        # Dump bolometric light curves.
+        with open(bfile, 'a') as f:
+            for k in range(pos.shape[0]):
+                try:
+                    vec = ParamVec(pos[k], fc.np, fc.nl)
+                except BoundsError as e:
+                    bolo = np.zeros(fc.hsiao._phase.shape[0]) * np.nan
+                bolo = fc.bolo(vec)
+                f.write("{0:4d} {1:4d} {2:s}\n"
+                        .format(i, k, stringify(bolo)))
     
 
 def main(lc_filename, nph, nl):
@@ -275,14 +298,6 @@ def main(lc_filename, nph, nl):
     # Set up the sampler. 
     sampler = emcee.EnsembleSampler(nwal, fc.D, fc)
 
-    # Do burn-in.
-    sgen = sampler.sample(pvecs, iterations=1000, storechain=False)
-
-    '''
-    for result in sgen_burn:
-        pos, prob, state = result
-    '''
-
     # Get set up to collect the output of the sampler. 
     
     if not os.path.exists(fc.outdir):
@@ -291,43 +306,34 @@ def main(lc_filename, nph, nl):
     chain_fname = os.path.join(fc.outdir, 'chain.dat')
     bolo_fname = os.path.join(fc.outdir, 'bolo.dat')
 
-    # Clear the files if they already exist. 
-    with open(chain_fname, 'w') as f, open(bolo_fname, 'w'):
-        f.write('np=%d nl=%d\n' % (fc.np, fc.nl))
+    chain_burn_fname = os.path.join(fc.outdir, 'chain_burn.dat')
+    bolo_burn_fname = os.path.join(fc.outdir, 'bolo_burn.dat')
 
-    # Define a helper function for the output formatting. 
-    stringify = lambda array: " ".join(["%.5e" % e for e in array])
+    # Clear the output files if they already exist. 
+    with open(chain_fname, 'w') as f, open(bolo_fname, 'w'), \
+         open(chain_burn_fname, 'w') as g, open(bolo_burn_fname, 'w'):
+        f.write('np=%d nl=%d\n' % (fc.np, fc.nl))
+        g.write('np=%d nl=%d\n' % (fc.np, fc.nl))
+
+
+    # Do burn-in.
+    sgen_burn = sampler.sample(pvecs, iterations=1000, storechain=False)
+
+    for i, result in enumerate(sgen_burn):
+        record(result, bolo_burn_fname, chain_burn_fname, i)
             
     # Set up sample generator.
-    '''
+
     sgen = sampler.sample(pos, 
                           iterations=1000,
                           rstate0=state,
                           lnprob0=prob,
                           storechain=False)
 
-    '''
-
     # Sample and record the output. 
     for i, result in enumerate(sgen):
-        pos, lnprob, rstate = result
-        
-        # Dump chain state. 
-        with open(chain_fname, 'a') as f:
-            for k in range(pos.shape[0]):
-                f.write("{3:4d} {0:4d} {2:f} {1:s}\n"
-                        .format(k, stringify(pos[k]), lnprob[k], i))
-
-        # Dump bolometric light curves.
-        with open(bolo_fname, 'a') as f:
-            for k in range(pos.shape[0]):
-                try:
-                    vec = ParamVec(pos[k], fc.np, fc.nl)
-                except BoundsError as e:
-                    bolo = np.zeros(fc.hsiao._phase.shape[0]) * np.nan
-                bolo = fc.bolo(vec)
-                f.write("{0:4d} {1:4d} {2:s}\n"
-                        .format(i, k, stringify(bolo)))
+        record(result, bolo_fname, chain_fname, i)
+    
 
 
 if __name__ == "__main__":
