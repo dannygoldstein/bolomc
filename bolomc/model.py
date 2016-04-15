@@ -35,53 +35,6 @@ def filter_to_wave_eff(filt):
     filt = sncosmo.get_bandpass(filt)
     return filt.wave_eff
 
-def compute_ratio(band, type='flux'):
-
-    """Compute 
-   
-        S alpha(\lambda) T(\lambda) d\lambda 
-        ------------------------------------
-              S T(\lambda) d\lambda
-   
-    if `type` == 'flux', or
-
-        S \lambda \alpha(\lambda) T(\lambda) / (hc) d\lambda
-        ----------------------------------------------------
-                   S T(\lambda) d\lambda
-    
-    if `type` == 'photon',
-
-    where T and alpha are the transmission function and standard
-    spectrum of `band`, respectively."""
-
-    band = sncosmo.get_bandpass(band)
-    sp = magsys.standards[band.name] # flux-calibrated standard spectrum
-    binw = np.gradient(sp.wave) # should be 10AA
-
-    # interpolate the bandpass wavelength grid to the spectrum
-    # wavelength grid, setting the transmission to 0. at wavelengths
-    # that are beyond the grid defining the bandpass
-
-    binterp = np.interp(sp.wave, band.wave, band.trans, left=0., right=0.)
-
-    # ensure all transmissions are positive
-    binterp[binterp < 0] = 0
-    
-    # compute the product alpha(\lambda) d\lambda    
-    prod = binterp * binw
-    
-    # do the first integral 
-    if type == 'flux':
-        numerator = np.sum(sp.flux * prod) 
-    elif type == 'photon':
-        numerator = np.sum(sp.flux * sp.wave * prod) / (h * c) * AA_TO_CM
-    
-    # do the second integral
-    denomenator = np.sum(prod)
-    
-    return numerator / denomenator
-
-
 class FitContext(object):
 
     """Implementation of the PGM (Figure 1) from Goldstein & Kasen
