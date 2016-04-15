@@ -24,12 +24,13 @@ class LCStack(object):
         self.L = np.atleast_2d(L)
         self.name = name
 
-    def plot(self):
+    def plot(self, L=None):
         fig, ax = plt.subplots()
-        for row in self.L.reshape(-1, 106):
+        if L is None:
+            L = self.L.reshape(-1, 106)
+        for row in L:
             ax.plot(self.phase, row, 'k', alpha=0.05)
         ax.set_xlabel('phase (days)')
         ax.set_ylabel('flux (cgs)')
-        ax.set_title(self.name)
         sns.despine(ax=ax)
         return ax
