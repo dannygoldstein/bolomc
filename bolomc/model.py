@@ -20,6 +20,7 @@ from errors import *
 from distributions import TruncNorm, stats
 from vec import ParamVec
 
+import h5py
 import emcee
 
 ######################################################
@@ -281,8 +282,21 @@ class FitContext(object):
 # Define a helper function for the output formatting. 
 stringify = lambda array: " ".join(["%.5e" % e for e in array])
     
-def record(result, bfile, cfile, i):
+def record(result, outfile, fc, i):
     pos, lnprob, rstate = result
+
+    with h5py.File(outfile) as f:
+        f.pos[i] = pos
+        f.prob[i] = lnprob
+                for k in range(pos.shape[0]):
+            try:
+                vec = ParamVec(pos[k], fc.np, fc.nl)
+            except BoundsError as e:
+                bolo = np.zeros(fc.hsiao._phase.shape[0]) * np.nan
+            bolo = fc.bolo(vec)
+
+        f.bolo[i] = fc.bolo(
+        
 
     # Dump chain state. 
     with open(cfile, 'a') as f:
@@ -292,12 +306,6 @@ def record(result, bfile, cfile, i):
 
     # Dump bolometric light curves.
     with open(bfile, 'a') as f:
-        for k in range(pos.shape[0]):
-            try:
-                vec = ParamVec(pos[k], fc.np, fc.nl)
-            except BoundsError as e:
-                bolo = np.zeros(fc.hsiao._phase.shape[0]) * np.nan
-            bolo = fc.bolo(vec)
             f.write("{0:4d} {1:4d} {2:s}\n"
                     .format(i, k, stringify(bolo)))
     
