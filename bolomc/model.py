@@ -294,6 +294,7 @@ def record(result, group, fc, i):
             bolo = fc.bolo(vec, compute_luminosity=True)
         bolos.append(bolo)
 
+    bolos = np.asarray(bolos)
     group['prob'][i] = lnprob
     group['bolo'][i] = bolos
     group['params'][i] = pos        
@@ -313,9 +314,9 @@ def create_output_file(fname, fc):
     return f
 
 def initialize_hdf5_group(group, fc, nsamp, nwal):
-    group.create_dataset('bolo', (nsamp, nwal, fc.hsiao._phase.shape[0]))
-    group.create_dataset('params', (nsamp, nwal, fc.D))
-    group.create_dataset('prob', (nsamp, nwal))
+    group.create_dataset('bolo', (nsamp, nwal, fc.hsiao._phase.shape[0]), dtype='float64')
+    group.create_dataset('params', (nsamp, nwal, fc.D), dtype='float64')
+    group.create_dataset('prob', (nsamp, nwal), dtype='float64')
     return group
                          
 def main(lc_filename, nph, nl, outfile, nburn=1000, nsamp=1000):
