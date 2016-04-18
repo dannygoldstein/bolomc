@@ -6,6 +6,7 @@ __whatami__ = 'Predictive model for SN Ia bolometric light curves ' \
 
 import os
 import sys
+import glob
 import sncosmo
 import numpy as np
 
@@ -20,6 +21,7 @@ from errors import *
 from distributions import TruncNorm, stats
 from vec import ParamVec
 
+import h5py
 import emcee
 
 ######################################################
@@ -49,15 +51,13 @@ class FitContext(object):
     def __init__(self, lcfile, nphase, nlam,
                  dust_type=sncosmo.OD94Dust, 
                  exclude_bands=[],
-                 rv_bintype='gmm',
-                 outdir='output'):
+                 rv_bintype='gmm'):
 
         self.dust_type = dust_type
         self.exclude_bands = exclude_bands
         
         self.np = nphase
         self.nl = nlam
-        self.outdir = outdir
 
         self.lc = sncosmo.read_lc(lcfile, format='csp')
         self.lc['wave_eff'] = map(filter_to_wave_eff, self.lc['filter'])
@@ -281,28 +281,45 @@ class FitContext(object):
 # Define a helper function for the output formatting. 
 stringify = lambda array: " ".join(["%.5e" % e for e in array])
     
-def record(result, bfile, cfile, i):
+def record(result, group, fc, i):
     pos, lnprob, rstate = result
-        
-        # Dump chain state. 
-        with open(cfile, 'a') as f:
-            for k in range(pos.shape[0]):
-                f.write("{3:4d} {0:4d} {2:f} {1:s}\n"
-                        .format(k, stringify(pos[k]), lnprob[k], i))
-
-        # Dump bolometric light curves.
-        with open(bfile, 'a') as f:
-            for k in range(pos.shape[0]):
-                try:
-                    vec = ParamVec(pos[k], fc.np, fc.nl)
-                except BoundsError as e:
-                    bolo = np.zeros(fc.hsiao._phase.shape[0]) * np.nan
-                bolo = fc.bolo(vec)
-                f.write("{0:4d} {1:4d} {2:s}\n"
-                        .format(i, k, stringify(bolo)))
+    bolos = list()
     
+    for k in range(pos.shape[0]):
+        try:
+            vec = ParamVec(pos[k], fc.np, fc.nl)
+        except BoundsError as e:
+            bolo = np.zeros(fc.hsiao._phase.shape[0]) * np.nan
+        else:
+            bolo = fc.bolo(vec, compute_luminosity=True)
+        bolos.append(bolo)
 
-def main(lc_filename, nph, nl):
+    bolos = np.asarray(bolos)
+    group['prob'][i] = lnprob
+    group['bolo'][i] = bolos
+    group['params'][i] = pos        
+
+def rename_output_file(name):
+    newname = name + '.old'
+    if os.path.exists(newname):
+        rename_output_file(newname)
+    os.rename(name, newname)
+
+def create_output_file(fname, fc):
+    if os.path.exists(fname):
+        rename_output_file(fname)
+    f = h5py.File(fname, 'w')
+    f['np'] = fc.np
+    f['nl'] = fc.nl
+    return f
+
+def initialize_hdf5_group(group, fc, nsamp, nwal):
+    group.create_dataset('bolo', (nsamp, nwal, fc.hsiao._phase.shape[0]), dtype='float64')
+    group.create_dataset('params', (nsamp, nwal, fc.D), dtype='float64')
+    group.create_dataset('prob', (nsamp, nwal), dtype='float64')
+    return group
+                         
+def main(lc_filename, nph, nl, outfile, nburn=1000, nsamp=1000):
     
     # Fit a single light curve with the model.
 
@@ -335,40 +352,36 @@ def main(lc_filename, nph, nl):
     sampler = emcee.EnsembleSampler(nwal, fc.D, fc)
 
     # Get set up to collect the output of the sampler. 
+    # Rename the output files if they already exist. 
+     
+    out = create_output_file(outfile, fc)
+    out.create_dataset('init_params', data=pvecs)
+
+    burn = out.create_group('burn')
+    samp = out.create_group('samples')
+
+    initialize_hdf5_group(burn, fc, nburn, nwal)
+    initialize_hdf5_group(samp, fc, nsamp, nwal)
     
-    if not os.path.exists(fc.outdir):
-        os.mkdir(fc.outdir)
-        
-    chain_fname = os.path.join(fc.outdir, 'chain.dat')
-    bolo_fname = os.path.join(fc.outdir, 'bolo.dat')
-
-    chain_burn_fname = os.path.join(fc.outdir, 'chain_burn.dat')
-    bolo_burn_fname = os.path.join(fc.outdir, 'bolo_burn.dat')
-
-    # Clear the output files if they already exist. 
-    with open(chain_fname, 'w') as f, open(bolo_fname, 'w'), \
-         open(chain_burn_fname, 'w') as g, open(bolo_burn_fname, 'w'):
-        f.write('np=%d nl=%d\n' % (fc.np, fc.nl))
-        g.write('np=%d nl=%d\n' % (fc.np, fc.nl))
-
-
     # Do burn-in.
-    sgen_burn = sampler.sample(pvecs, iterations=1000, storechain=False)
+    sgen_burn = sampler.sample(pvecs, 
+                               iterations=nburn, 
+                               storechain=False)
 
     for i, result in enumerate(sgen_burn):
-        record(result, bolo_burn_fname, chain_burn_fname, i)
+        record(result, burn, fc, i)
             
     # Set up sample generator.
-
+    pos, prob, state = result    
     sgen = sampler.sample(pos, 
-                          iterations=1000,
+                          iterations=nsamp,
                           rstate0=state,
                           lnprob0=prob,
                           storechain=False)
 
     # Sample and record the output. 
     for i, result in enumerate(sgen):
-        record(result, bolo_fname, chain_fname, i)
+        record(result, samp, fc, i)
     
 
 
@@ -377,4 +390,5 @@ if __name__ == "__main__":
     lc_filename = sys.argv[1]
     nph = int(sys.argv[2])
     nl = int(sys.argv[3])
-    main(lc_filename, nph, nl)
+    outfile = sys.argv[4]
+    main(lc_filename, nph, nl, outfile)
