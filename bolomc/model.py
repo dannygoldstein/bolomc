@@ -24,6 +24,8 @@ from vec import ParamVec
 import h5py
 import emcee
 
+import logging
+
 ######################################################
 # CONSTANTS ##########################################
 ######################################################
@@ -308,7 +310,7 @@ def rename_output_file(name):
 def create_output_file(fname, fc):
     if os.path.exists(fname):
         rename_output_file(fname)
-    f = h5py.File(fname, 'w')
+    f = h5py.File(fname)
     f['np'] = fc.np
     f['nl'] = fc.nl
     return f
@@ -368,8 +370,12 @@ def main(lc_filename, nph, nl, outfile, nburn=1000, nsamp=1000):
                                iterations=nburn, 
                                storechain=False)
 
+    logging.info('beginning burn-in')
     for i, result in enumerate(sgen_burn):
         record(result, burn, fc, i)
+        logging.info('burn-in iteration %d, med lnprob: %f',
+                     i, np.median(result[1]))
+    logging.info('burn-in complete')
             
     # Set up sample generator.
     pos, prob, state = result    
@@ -379,9 +385,13 @@ def main(lc_filename, nph, nl, outfile, nburn=1000, nsamp=1000):
                           lnprob0=prob,
                           storechain=False)
 
+    logging.info('beginning sampling')
     # Sample and record the output. 
     for i, result in enumerate(sgen):
         record(result, samp, fc, i)
+        logging.info('sampling iteration %d, med lnprob: %f',
+                     i, np.median(result[1]))
+    logging.info('sampling complete')
     
 
 
@@ -391,4 +401,9 @@ if __name__ == "__main__":
     nph = int(sys.argv[2])
     nl = int(sys.argv[3])
     outfile = sys.argv[4]
+    logfile = sys.argv[5]
+    logging.basicConfig(format='[%(asctime)s]: %(message)s',
+                        filename=logfile, 
+                        filemode='w',
+                        level=logging.DEBUG)
     main(lc_filename, nph, nl, outfile)
