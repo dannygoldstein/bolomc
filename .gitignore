@@ -2,3 +2,5 @@
 .#*
 bolomc.egg-info
 output
+*~
+run

@@ -357,41 +357,43 @@ def main(lc_filename, nph, nl, outfile, nburn=1000, nsamp=1000):
     # Rename the output files if they already exist. 
      
     out = create_output_file(outfile, fc)
-    out.create_dataset('init_params', data=pvecs)
 
-    burn = out.create_group('burn')
-    samp = out.create_group('samples')
+    with out:
+        out.create_dataset('init_params', data=pvecs)
 
-    initialize_hdf5_group(burn, fc, nburn, nwal)
-    initialize_hdf5_group(samp, fc, nsamp, nwal)
-    
-    # Do burn-in.
-    sgen_burn = sampler.sample(pvecs, 
-                               iterations=nburn, 
-                               storechain=False)
+        burn = out.create_group('burn')
+        samp = out.create_group('samples')
 
-    logging.info('beginning burn-in')
-    for i, result in enumerate(sgen_burn):
-        record(result, burn, fc, i)
-        logging.info('burn-in iteration %d, med lnprob: %f',
-                     i, np.median(result[1]))
-    logging.info('burn-in complete')
-            
-    # Set up sample generator.
-    pos, prob, state = result    
-    sgen = sampler.sample(pos, 
-                          iterations=nsamp,
-                          rstate0=state,
-                          lnprob0=prob,
-                          storechain=False)
+        initialize_hdf5_group(burn, fc, nburn, nwal)
+        initialize_hdf5_group(samp, fc, nsamp, nwal)
 
-    logging.info('beginning sampling')
-    # Sample and record the output. 
-    for i, result in enumerate(sgen):
-        record(result, samp, fc, i)
-        logging.info('sampling iteration %d, med lnprob: %f',
-                     i, np.median(result[1]))
-    logging.info('sampling complete')
+        # Do burn-in.
+        sgen_burn = sampler.sample(pvecs, 
+                                   iterations=nburn, 
+                                   storechain=False)
+
+        logging.info('beginning burn-in')
+        for i, result in enumerate(sgen_burn):
+            record(result, burn, fc, i)
+            logging.info('burn-in iteration %d, med lnprob: %f',
+                         i, np.median(result[1]))
+        logging.info('burn-in complete')
+
+        # Set up sample generator.
+        pos, prob, state = result    
+        sgen = sampler.sample(pos, 
+                              iterations=nsamp,
+                              rstate0=state,
+                              lnprob0=prob,
+                              storechain=False)
+
+        logging.info('beginning sampling')
+        # Sample and record the output. 
+        for i, result in enumerate(sgen):
+            record(result, samp, fc, i)
+            logging.info('sampling iteration %d, med lnprob: %f',
+                         i, np.median(result[1]))
+        logging.info('sampling complete')
     
 
 
