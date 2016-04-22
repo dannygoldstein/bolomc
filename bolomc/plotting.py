@@ -45,7 +45,7 @@ def plot_wslices(pgrid, wgrid, warp):
     warp = np.atleast_3d(warp)
     figs = []
     
-    warp = np.rollaxis(warp, 2)
+    warp = np.rollaxis(warp, 1)
 
     for p, row in zip(pgrid, warp):
         fig, ax = plt.subplots(figsize=(10.5,8))

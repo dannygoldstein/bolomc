@@ -252,7 +252,10 @@ class FitContext(object):
         
         def minfunc(t):
             # objective function
-            return -func(t)
+            try:
+                return -func(t) / 1e43
+            except ValueError:
+                return np.inf
     
         res = minimize(minfunc, 0.)
         if not res.success:
