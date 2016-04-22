@@ -49,9 +49,11 @@ def plot_wslices(pgrid, wgrid, warp):
 
     for p, row in zip(pgrid, warp):
         fig, ax = plt.subplots(figsize=(10.5,8))
-        for realization in row:
-            ax.plot(wgrid, realization, 'k-', alpha=0.2)
-        ax.plot(wgrid, row.mean(0), 'r-', linewidth=1.3)
+        medlc = np.median(row, axis=0)
+        medm1 = np.percentile(row, 50 - 68./2, axis=0)
+        medp1 = np.percentile(row, 50 + 68./2, axis=0)
+        ax.plot(wgrid, medlc, color='r')
+        ax.fill_between(wgrid, medm1, medp1, color='r', alpha=0.2)
         ax.set_title('phase=%.5ed' % p)
         ax.set_xlabel('wavelength (AA)')
         ax.set_ylabel('ratio')
