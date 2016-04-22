@@ -50,7 +50,7 @@ class FitContext(object):
 
     """
     
-    def __init__(self, lcfile, nphase, nlam,
+    def __init__(self, lcfile, nphase,
                  dust_type=sncosmo.OD94Dust, 
                  exclude_bands=[],
                  rv_bintype='gmm'):
@@ -59,7 +59,6 @@ class FitContext(object):
         self.exclude_bands = exclude_bands
         
         self.np = nphase
-        self.nl = nlam
 
         self.lc = sncosmo.read_lc(lcfile, format='csp')
         self.lc['wave_eff'] = map(filter_to_wave_eff, self.lc['filter'])
@@ -97,9 +96,10 @@ class FitContext(object):
         self.xstar_p = np.linspace(self.hsiao._phase[0], 
                                    self.hsiao._phase[-1], 
                                    self.np)
-        self.xstar_l = np.linspace(self.hsiao._wave[0], 
-                                   self.hsiao._wave[-1], 
-                                   self.nl)
+
+        self.xstar_l = np.array(sorted(map(filter_to_wave_eff, self.bands)))
+        self.nl = self.xstar_l.size
+
         
         # this is the coarse grid
         self.xstar = np.asarray(list(product(self.xstar_p, 
@@ -324,11 +324,11 @@ def initialize_hdf5_group(group, fc, nsamp, nwal):
     group.create_dataset('prob', (nsamp, nwal), dtype='float64')
     return group
                          
-def main(lc_filename, nph, nl, outfile, nburn=1000, nsamp=1000):
+def main(lc_filename, nph, outfile, nburn=1000, nsamp=1000):
     
     # Fit a single light curve with the model.
 
-    fc = FitContext(lc_filename, nph, nl)
+    fc = FitContext(lc_filename, nph)
 
     # create initial parameter vectors
 
@@ -404,11 +404,10 @@ if __name__ == "__main__":
 
     lc_filename = sys.argv[1]
     nph = int(sys.argv[2])
-    nl = int(sys.argv[3])
-    outfile = sys.argv[4]
-    logfile = sys.argv[5]
+    outfile = sys.argv[3]
+    logfile = sys.argv[4]
     logging.basicConfig(format='[%(asctime)s]: %(message)s',
                         filename=logfile, 
                         filemode='w',
                         level=logging.DEBUG)
-    main(lc_filename, nph, nl, outfile)
+    main(lc_filename, nph, outfile)
