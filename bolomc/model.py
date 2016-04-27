@@ -286,7 +286,7 @@ class FitContext(object):
 # Define a helper function for the output formatting. 
 stringify = lambda array: " ".join(["%.5e" % e for e in array])
     
-def record(result, group, fc, i):
+def record(result, group, fc, sampler, i):
     pos, lnprob, rstate = result
     bolos = list()
     
@@ -303,6 +303,7 @@ def record(result, group, fc, i):
     group['prob'][i] = lnprob
     group['bolo'][i] = bolos
     group['params'][i] = pos        
+    group['afrac'][i] = sampler.acceptance_fraction
 
 def rename_output_file(name):
     newname = name + '.old'
@@ -322,6 +323,7 @@ def initialize_hdf5_group(group, fc, nsamp, nwal):
     group.create_dataset('bolo', (nsamp, nwal, fc.hsiao._phase.shape[0]), dtype='float64')
     group.create_dataset('params', (nsamp, nwal, fc.D), dtype='float64')
     group.create_dataset('prob', (nsamp, nwal), dtype='float64')
+    group.create_dataset('afrac', (nsamp, nwal), dtype='float64')
     return group
                          
 def main(lc_filename, nph, outfile, nburn=1000, nsamp=1000):
@@ -377,10 +379,13 @@ def main(lc_filename, nph, outfile, nburn=1000, nsamp=1000):
 
         logging.info('beginning burn-in')
         for i, result in enumerate(sgen_burn):
-            record(result, burn, fc, i)
+            record(result, burn, fc, sampler, i)
             logging.info('burn-in iteration %d, med lnprob: %f',
                          i, np.median(result[1]))
         logging.info('burn-in complete')
+        
+        # Reset the sampler
+        sampler.reset()
 
         # Set up sample generator.
         pos, prob, state = result    
@@ -393,12 +398,11 @@ def main(lc_filename, nph, outfile, nburn=1000, nsamp=1000):
         logging.info('beginning sampling')
         # Sample and record the output. 
         for i, result in enumerate(sgen):
-            record(result, samp, fc, i)
+            record(result, samp, fc, sampler, i)
             logging.info('sampling iteration %d, med lnprob: %f',
                          i, np.median(result[1]))
         logging.info('sampling complete')
-    
-
+        
 
 if __name__ == "__main__":
 
