@@ -382,6 +382,8 @@ def main(lc_filename, nph, outfile, nburn=1000, nsamp=1000):
             record(result, burn, fc, sampler, i)
             logging.info('burn-in iteration %d, med lnprob: %f',
                          i, np.median(result[1]))
+            logging.info('median acceptance fraction = %f' % \
+                         np.median(sampler.acceptance_fraction))
         logging.info('burn-in complete')
         
         # Reset the sampler
@@ -401,6 +403,8 @@ def main(lc_filename, nph, outfile, nburn=1000, nsamp=1000):
             record(result, samp, fc, sampler, i)
             logging.info('sampling iteration %d, med lnprob: %f',
                          i, np.median(result[1]))
+            logging.info('median acceptance fraction = %f' % \
+                         np.median(sampler.acceptance_fraction))
         logging.info('sampling complete')
         
 
