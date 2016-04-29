@@ -66,7 +66,7 @@ def iqr(x, axis=None):
     q75, q25 = np.percentile(x, [75 ,25], axis=axis)
     return q75 - q25
 
-def nbins_freedman_diaconis(x):
+def nbins(x):
     """Compute the number of bins for histogramming x using the freedman
     diaconis rule-of-thumb.
     """
@@ -81,8 +81,9 @@ def center(bins):
     """Take bin edges and return the bin centers."""
     return (bins[:-1] + bins[1:]) / 2.
 
-def plot_chains(chains, style='overlapping', param_names=None, filename=None):
-    # Chains should have shape npar, nwal, nt
+def plot_chains(chains, param_names=None, filename=None):
+    """Plot the paths of MCMC chains in parameter space. Chains should
+    have shape npar, nwal, nt."""
     
     s = chains.shape
     x = np.arange(1, s[-1] + 1)
@@ -110,20 +111,13 @@ def plot_chains(chains, style='overlapping', param_names=None, filename=None):
         fig, (ca, ma) = plt.subplots(ncols=2, figsize=(10.5, 8)) 
         
         # Determine the bins for the marginal histogram. 
-        bins = np.linspace(p.min(), p.max(), nbins_freedman_diaconis(p) + 1)
+        bins = np.linspace(p.min(), p.max(), nbins(p) + 1)
         
         # For each parameter, 
         for i, w in enumerate(p):
             
-            # plot the chains of the walkers...
-            if style == 'overlapping':
-                # ...on top of each other. 
-                ca.plot(x, w, 'k', lw=1)
-            elif style == 'segregated':
-                # ...separately.
-                ca.plot(x + i * s[1], w, lw=1)
-            else:
-                raise ValueError('Invalid style specified.')
+            # plot the chains of the walkers on top of each other. 
+            ca.plot(x, w, 'k', lw=1)
         
         # Compute the marginal histogram...
         n, bins = np.histogram(p, bins=bins)
