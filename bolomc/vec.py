@@ -17,11 +17,11 @@ class ParamVec(object):
         shape = idx.max(0) + 1
         return np.asarray([cls(r, nph, nl) for r in a[:, 3:]]).reshape(*shape)
         
-    def __init__(self, vec, np, nl, check_bounds=True):
+    def __init__(self, vec, nph, nl, check_bounds=True):
         self.vec = vec
         if check_bounds:
             self._check_bounds()
-        self.np = np
+        self.nph = nph
         self.nl = nl
 
     def _check_bounds(self):
@@ -72,13 +72,13 @@ class ParamVec(object):
     
     @property
     def sedw(self):
-        return self.vec[4:].reshape(self.np, self.nl)
+        return self.vec[4:].reshape(self.nph, self.nl)
 
     @sedw.setter
     def sedw(self, x):
-        view = self.vec[4:].reshape(self.np, self.nl)
+        view = self.vec[4:].reshape(self.nph, self.nl)
         view[:, :] = x
-        self.vec[4:] = view.reshape(self.np * self.nl)
+        self.vec[4:] = view.reshape(self.nph * self.nl)
         
     @property
     def D(self):
