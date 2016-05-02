@@ -454,43 +454,43 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('lc_filename', help='The name of the light ' \
                         'curve file to fit.', type=argparse.FileType('r'), 
-                        optional=False, dest='lc_filename', nargs=1)
+                        nargs=1)
     parser.add_argument('nph', help='The number of phase points to use.',
-                        type=int, optional=False, dest='nph', nargs=1)
+                        type=int, nargs=1)
     parser.add_argument('outfile', help='The name of the hdf5 ' \
                         'file to store the MCMC results.', type=str,
                         nargs=1)
     parser.add_argument('--logfile', help='The name of the MCMC logfile.',
-                        default=LOGFILE, optional=True, dest='logfile',
+                        default=LOGFILE, dest='logfile',
                         nargs=1)
     parser.add_argument('--nburn', help='Number of burn-in iterations.',
-                        default=NBURN, type=int, optional=True, dest='nburn',
+                        default=NBURN, type=int, dest='nburn',
                         nargs=1)
     parser.add_argument('--nsamp', help='Number of sampling iterations.',
-                        default=NSAMP, type=int, optional=True, dest='nsamp',
+                        default=NSAMP, type=int, dest='nsamp',
                         nargs=1)
     parser.add_argument('--nl', help='Enables a regularly spaced wavelength ' \
                         'grid, and specifies the number of points to use.',
-                        type=int, default=NL, optional=True, dest='nl', 
+                        type=int, default=NL, dest='nl', 
                         nargs=1)
     parser.add_argument('--nwalkers', help='Number of walkers to use.',
-                        type=int, default=NWALKERS, optional=True, dest='nwalkers',
+                        type=int, default=NWALKERS, dest='nwalkers',
                         nargs=1)
     parser.add_argument('--nthreads', help='Number of MCMC threads to use.',
-                        type=int, default=NTHREADS, optional=True, nargs=1, 
+                        type=int, default=NTHREADS, nargs=1, 
                         dest='nthreads')
     parser.add_argument('--exclude_bands', type=str, nargs='+', 
                         default=EXCLUDE_BANDS, help='Bandpasses to exclude ' \
-                        'from the fit.', optional=True, dest='exclude_bands')
+                        'from the fit.', dest='exclude_bands')
     parser.add_argument('--dust_type', help='Reddening law to use for host ' \
-                        'galaxy dust.', dest='dust_type', optional=True,
+                        'galaxy dust.', dest='dust_type', 
                         choices=['F99', 'OD94'], nargs=1, default=DUST_TYPE)
     parser.add_argument('--rv_bintype', help='Prior for host galaxy reddening' \
-                        ' law.', dest='rv_bintype', optional=True, 
+                        ' law.', dest='rv_bintype', 
                         default=RV_BINTYPE, nargs=1, choices=['gmm', 'uniform',
                                                               'binned'])
     parser.add_argument('--splint_order', help='Spline interpolation order.',
-                        dest='splint_order', nargs=1, type=int, optional=True,
+                        dest='splint_order', nargs=1, type=int,
                         default=SPLINT_ORDER, choices=[1,2,3])
     args = parser.parse_args()
 
