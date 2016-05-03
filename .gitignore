@@ -1,5 +1,6 @@
 *.pyc
 .#*
+*#*
 bolomc.egg-info
 output
 *~
