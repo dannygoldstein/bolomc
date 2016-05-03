@@ -39,6 +39,7 @@ AA_TO_CM = 1e-8 # dimensionless
 ETA_SQ = 0.1
 NUG = 1e-7 
 magsys = sncosmo.get_magsystem('csp')
+nmersenne = 624 # size of MT state vector
 
 ######################################################
 # DEFAULTS ###########################################
@@ -80,7 +81,18 @@ def record(result, group, fc, sampler, i):
     group['prob'][i] = lnprob
     group['bolo'][i] = bolos
     group['params'][i] = pos        
+
+    # Save the random state. 
+    group['rstate1'][i] = rstate[1]
+    group['rstate2'][i] = rstate[2]
+    group['rstate3'][i] = rstate[3]
+    group['rstate4'][i] = rstate[4]
+    
+    # Save the acceptance fraction. 
     group['afrac'][i] = sampler.acceptance_fraction
+    
+    # Save the current iteration number.
+    group['last_index_filled'][()] = i
 
 def rename_output_file(name):
     newname = name + '.old'
@@ -88,12 +100,10 @@ def rename_output_file(name):
         rename_output_file(newname)
     os.rename(name, newname)
 
-def create_output_file(fname, fc):
+def create_output_file(fname):
     if os.path.exists(fname):
         rename_output_file(fname)
     f = h5py.File(fname)
-    f['nph'] = fc.nph
-    f['nl'] = fc.nl
     return f
 
 def initialize_hdf5_group(group, fc, nsamp, nwalkers):
@@ -102,11 +112,22 @@ def initialize_hdf5_group(group, fc, nsamp, nwalkers):
     afs = (nsamp, nwalkers)
     pars = (nsamp, nwalkers, fc.D)
     probs = (nsamp, nwalkers)
+    states = (nsamp, nmersenne)
 
+    # Initialize the result arrays. 
     group.create_dataset('params', pars, dtype='float64')
     group.create_dataset('prob', probs, dtype='float64')
     group.create_dataset('afrac', afs, dtype='float64')
     group.create_dataset('bolo', bs, dtype='float64')
+    group.create_dataset('last_index_filled', (), dtype=int)
+    
+    # Initialize the random state arrays. 
+    group.create_dataset('rstate1', states, dtype='uint32')
+    group.create_dataset('rstate2', (nsamp,), dtype=int)
+    group.create_dataset('rstate3', (nsamp,), dtype=int)
+    group.create_dataset('rstate4', (nsamp,), dtype='float64')
+
+    group['niter'] = nsamp
 
     return group
 
@@ -401,18 +422,34 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
     # Get set up to collect the output of the sampler. 
     # Rename the output files if they already exist. 
      
-    out = create_output_file(outfile, fc)
+    out = create_output_file(outfile)
+
 
     with out:
         out.create_dataset('init_params', data=pvecs)
 
+        # These are constant for the duartion of the MCMC. 
+
+        out['nph'] = fc.nph
+        out['nl'] = fc.nl
+        out['nwalkers'] = nwalkers
+        out['nthreads'] = nthreads
+        out['dust_type'] = dust_type
+        out['splint_order'] = splint_order
+        out['lc_filename'] = lc_filename.name
+        out['exclude_bands'] = exclude_bands
+        out['rv_bintype'] = rv_bintype
+                
         burn = out.create_group('burn')
         samp = out.create_group('samples')
 
         initialize_hdf5_group(burn, fc, nburn, nwalkers)
         initialize_hdf5_group(samp, fc, nsamp, nwalkers)
-
+        
         # Do burn-in.
+        
+        out["current_stage"][()] = 0 # 0 = burn in, 1 = sampling
+
         sgen_burn = sampler.sample(pvecs,
                                    iterations=nburn, 
                                    storechain=False)
@@ -431,6 +468,9 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
 
         # Set up sample generator.
         pos, prob, state = result
+        
+        out["current_stage"][()] = 1 # 0 = burn-in, 1 = sampling
+
         sgen = sampler.sample(pos,
                               iterations=nsamp,
                               rstate0=state,
@@ -446,54 +486,199 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
             logging.info('median acceptance fraction = %f' % \
                          np.median(sampler.acceptance_fraction))
         logging.info('sampling complete')
+
+def restart(checkpoint_filename, iteration=None, stage=None):
+    """Restart an MCMC run from an unfinished HDF5 file."""
+    
+    f = h5py.File(checkpoint_filename, 'a')
+    with f:
         
+        # Are we burning or sampling? 
+
+        if stage == 'burn':
+            cs = f['burn']
+        elif stage == 'samples':
+            cs = f['samples']
+        elif stage is None:
+            stage_code = f["current_stage"][()]
+            if stage_code == 0:
+                cs = f['burn']
+            elif stage_code == 1:
+                cs = f['samples']
+            else:
+                raise ValueError('Invalid stage %s, in HDF5 file, must be one of '
+                                 '[burn, samples, None]' % stage_string)
+        else:
+            raise ValueError('Invalid stage %s, must be one of '
+                             '[burn, samples, None]' % stage)
+
+        # Take the latest iteration for this group if a restart is not
+        # specified, else use the given value.
+
+        if iteration is None:
+            i = cs["last_index_filled"][()]
+        else:
+            i = iteration
+        
+        # Read MCMC configuration parameters.
+        nph = f['nph'][()]
+        nl = f['nl'][()]
+        nwalkers = f['nwalkers'][()]
+        lc_filename = f['lc_filename'][()]
+        exclude_bands = f['exclude_bands'][()]
+        dust_type = f['dust_type'][()]
+        rv_bintype = f['rv_bintype'][()]
+        splint_order = f['splint_order'][()]
+        nthreads = f['nthreads'][()]
+        
+        # Read the random state.
+        rstate = ('MT19937', # See
+                             # http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/
+                             # numpy.random.get_state.html
+                  cs['rstate1'][i],
+                  cs['rstate2'][i],
+                  cs['rstate3'][i],
+                  cs['rstate4'][i])
+        
+        # Read the initial positions of the walkers. 
+        pos = cs['params'][i]
+    
+        # And probabilities. 
+        prob = cs['prob'][i]
+
+        # Create the likelihood.
+        fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
+                        exclude_bands=exclude_bands, dust_type=dust_type,
+                        rv_bintype=rv_bintype, splint_order=splint_order)
+        
+        # And the sampler. 
+        sampler = emcee.EnsembleSampler(nwalkers, fc.D, fc, threads=nthreads)
+        
+        # Restarting during the burn-in stage is a bit different from
+        # restarting during the sampling stage, because we have to
+        # transition to the sampling stage afterward. 
+        
+        startinburn = 'burn' in cs.name
+        burn = f['burn']
+        samp = f['samples']
+
+        if startinburn: 
+
+            nburn = f['burn']['niter'][()] - i 
+            nsamp = f['samples']['niter'][()]
+
+            # 0 = burn-in, 1 = sampling
+            f["current_stage"][()] = 0
+
+            sgen_burn = sampler.sample(pos, 
+                                       lnprob0=prob,
+                                       rstate0=rstate,
+                                       iterations=nburn,
+                                       storechain=False)
+            
+            logging.info('resuming burn-in')
+            for j, result in enumerate(sgen_burn):
+                record(result, burn, fc, sampler, i + j)
+                logging.info('burn-in iteration %d, med lnprob: %f',
+                             i + j, np.median(result[1]))
+                logging.info('median acceptance fraction = %f' % \
+                             np.median(sampler.acceptance_fraction))
+            logging.info('burn-in complete')
+
+            # Set up sample generator.
+            pos, prob, rstate = result
+
+            # Reset the sampler
+            sampler.reset()
+            
+        else:
+            nsamp = f['samples']['niter'][()] - i 
+            
+        # 0 = burn-in, 1 = sampling
+        f["current_stage"][()] = 1
+
+        sgen = sampler.sample(pos,
+                              iterations=nsamp,
+                              rstate0=rstate,
+                              lnprob0=prob,
+                              storechain=False)
+
+        logging.info('performing sampling')
+        # Sample and record the output. 
+        for j, result in enumerate(sgen):
+            record(result, samp, fc, sampler, i + j)
+            logging.info('sampling iteration %d, med lnprob: %f',
+                         i + j, np.median(result[1]))
+            logging.info('median acceptance fraction = %f' % \
+                         np.median(sampler.acceptance_fraction))
+        logging.info('sampling complete')
+            
 
 if __name__ == "__main__":
     
-    # Create the argument parser. 
+    # Create the argument parser and subparsers.
     parser = argparse.ArgumentParser()
-    parser.add_argument('lc_filename', help='The name of the light ' \
+    subparsers = parser.add_subparsers(dest='subparser_name')
+
+    # This parser will handle starting new MCMC runs. 
+    primary_parser = subparsers.add_parser('run', help='Start a new MCMC.')
+    
+    # This simpler parser will handle restarting unfinished MCMC runs. 
+    checkpoint_parser = subparsers.add_parser('restart', 
+                                              help='Restart an unfinished MCMC run ' \
+                                              'from an HDF5 file.')
+    
+    # Arguments for the `run` parser, which handles starting new MCMC runs. 
+    primary_parser.add_argument('lc_filename', help='The name of the light ' \
                         'curve file to fit.', type=argparse.FileType('r'))
-    parser.add_argument('nph', help='The number of phase points to use.',
+    primary_parser.add_argument('nph', help='The number of phase points to use.',
                         type=int)
-    parser.add_argument('outfile', help='The name of the hdf5 ' \
+    primary_parser.add_argument('outfile', help='The name of the hdf5 ' \
                         'file to store the MCMC results.', type=str)
-    parser.add_argument('--logfile', help='The name of the MCMC logfile.',
+    primary_parser.add_argument('--logfile', help='The name of the MCMC logfile.',
                         default=LOGFILE, dest='logfile')
-    parser.add_argument('--nburn', help='Number of burn-in iterations.',
+    primary_parser.add_argument('--nburn', help='Number of burn-in iterations.',
                         default=NBURN, type=int, dest='nburn')
-    parser.add_argument('--nsamp', help='Number of sampling iterations.',
+    primary_parser.add_argument('--nsamp', help='Number of sampling iterations.',
                         default=NSAMP, type=int, dest='nsamp')
-    parser.add_argument('--nl', help='Enables a regularly spaced wavelength ' \
+    primary_parser.add_argument('--nl', help='Enables a regularly spaced wavelength ' \
                         'grid, and specifies the number of points to use.',
                         type=int, default=NL, dest='nl')
-    parser.add_argument('--nwalkers', help='Number of walkers to use.',
+    primary_parser.add_argument('--nwalkers', help='Number of walkers to use.',
                         type=int, default=NWALKERS, dest='nwalkers')
-    parser.add_argument('--nthreads', help='Number of MCMC threads to use.',
+    primary_parser.add_argument('--nthreads', help='Number of MCMC threads to use.',
                         type=int, default=NTHREADS, dest='nthreads')
-    parser.add_argument('--exclude_bands', type=str, nargs='+', 
+    primary_parser.add_argument('--exclude_bands', type=str, nargs='+', 
                         default=EXCLUDE_BANDS, help='Bandpasses to exclude ' \
                         'from the fit.', dest='exclude_bands')
-    parser.add_argument('--dust_type', help='Reddening law to use for host ' \
+    primary_parser.add_argument('--dust_type', help='Reddening law to use for host ' \
                         'galaxy dust.', dest='dust_type', 
                         choices=['F99', 'OD94'], default=DUST_TYPE)
-    parser.add_argument('--rv_bintype', help='Prior for host galaxy reddening' \
+    primary_parser.add_argument('--rv_bintype', help='Prior for host galaxy reddening' \
                         ' law.', dest='rv_bintype', 
                         default=RV_BINTYPE, choices=['gmm', 'uniform',
                                                      'binned'])
-    parser.add_argument('--splint_order', help='Spline interpolation order.',
+    primary_parser.add_argument('--splint_order', help='Spline interpolation order.',
                         dest='splint_order', type=int,
                         default=SPLINT_ORDER, choices=[1,2,3])
-    args = parser.parse_args()
+    
+    # Arguments for the checkpoint restart parser.     
+    checkpoint_parser.add_argument('checkpoint_filename', help='The HDF5 file containing the ' \
+                                   'results and settings of the run to restart.', type=str)
+    checkpoint_parser.add_argument('--iteration', help='The iteration (0-based) to restart fr' \
+                                   'om. If not specified, uses the next unfilled iteration fr' \
+                                   'om the specified stage.', default=None, type=int)
+    checkpoint_parser.add_argument('--stage', help='The stage to restart from. If not specifi' \
+                                   'ed, uses the stage of the latest unfilled iteration.', 
+                                   default=None, type=str, choices=['burn','samples'])
+    checkpoint_parser.add_argument('--logfile', help='The name of the MCMC logfile.',
+                                   default=LOGFILE, dest='logfile')
 
-    print args
+    args = parser.parse_args()
 
     # Set the format of the log file. 
     lformat = '[%(asctime)s]: %(message)s'
     
-    # TODO: Consider whether the following block should be moved to
-    # module level?
-
     # If a logfile is specified...
     if args.logfile is not None:
         # ...log to it.
@@ -507,8 +692,13 @@ if __name__ == "__main__":
                             level=logging.DEBUG)
 
     # Do business.
-    main(lc_filename=args.lc_filename, nph=args.nph, outfile=args.outfile,
-         nburn=args.nburn, nsamp=args.nsamp, nl=args.nl, 
-         nwalkers=args.nwalkers, nthreads=args.nthreads,
-         exclude_bands=args.exclude_bands, dust_type=args.dust_type,
-         rv_bintype=args.rv_bintype, splint_order=args.splint_order)
+    if args.subparser_name == 'restart':
+        restart(args.checkpoint_filename, iteration=args.iteration,
+                stage=args.stage)
+    elif args.subparser_name == 'run':
+        main(lc_filename=args.lc_filename, nph=args.nph, outfile=args.outfile,
+             nburn=args.nburn, nsamp=args.nsamp, nl=args.nl, 
+             nwalkers=args.nwalkers, nthreads=args.nthreads,
+             exclude_bands=args.exclude_bands, dust_type=args.dust_type,
+             rv_bintype=args.rv_bintype, splint_order=args.splint_order)
+        

@@ -24,7 +24,7 @@ NPH = 36
 
 basecmd = """
 #!/bin/bash
-{exe:s} \\
+{exe:s} run \\
     {lc_filename:s} \\
     {nph:d} \\
     {outfile:s} \\
