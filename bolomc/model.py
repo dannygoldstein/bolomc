@@ -427,6 +427,7 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
 
     with out:
         out.create_dataset('init_params', data=pvecs)
+        out.create_dataset('current_stage', (), dtype=int)
 
         # These are constant for the duartion of the MCMC. 
 
