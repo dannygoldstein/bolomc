@@ -19,10 +19,10 @@ class ParamVec(object):
         
     def __init__(self, vec, nph, nl, check_bounds=True):
         self.vec = vec
-        if check_bounds:
-            self._check_bounds()
         self.nph = nph
         self.nl = nl
+        if check_bounds:
+            self._check_bounds()
 
     def _check_bounds(self):
         
@@ -35,6 +35,8 @@ class ParamVec(object):
             raise BoundsError(ermsg % ('llam', 0, np.inf, self.llam))
         if self.rv <= 0:
             raise BoundsError(ermsg % ('rv', 0, np.inf, self.rv))
+        if (self.sedw < 0).any():
+            raise BoundsError(inclermsg % ('sedw', 0, np.inf, self.sedw))
                 
     @property
     def lp(self):
