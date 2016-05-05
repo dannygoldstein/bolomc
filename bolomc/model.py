@@ -4,7 +4,8 @@ __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Predictive model for SN Ia bolometric light curves ' \
               'given CSP photometry and host reddening estimates.'
 
-__all__ = ['FitContext', 'main']
+__all__ = ['FitContext', 'main', 'restart', 
+           'reconstruct_fitcontext_from_h5']
 
 import os
 import sys
@@ -131,6 +132,32 @@ def initialize_hdf5_group(group, fc, nsamp, nwalkers):
 
     return group
 
+def reconstruct_fitcontext_from_h5(f):
+    
+    nph = f['nph'][()]
+    nl = f['nl'][()]
+    if nl == -1:
+        nl = None
+    lc_filename = f['lc_filename'][()]
+    exclude_bands = f['exclude_bands'][()]
+    dust_type = f['dust_type'][()]
+    rv_bintype = f['rv_bintype'][()]
+    splint_order = f['splint_order'][()]
+    t0 = f['t0'][()]
+    amplitude = f['amplitude'][()]
+
+    # Create the likelihood.
+    fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
+                    exclude_bands=exclude_bands, dust_type=dust_type,
+                    rv_bintype=rv_bintype, splint_order=splint_order)
+    fc.t0 = t0
+    fc.amplitude = amplitude
+
+    return fc
+
+
+
+
 def dust(s):
     """Convert the string representation of `s` of an sncosmo dust class
     to its class."""
@@ -201,7 +228,7 @@ class FitContext(object):
         self.xstar_p = np.linspace(self.hsiao._phase[0], 
                                    self.hsiao._phase[-1], 
                                    self.nph)
-
+        
         # If no regular wavelength grid is specified...
         if self.nl is None:
             #...make the wavelength grid the effective wavelengths of
@@ -352,7 +379,8 @@ class FitContext(object):
         flux *= self.amplitude
         flux = np.sum(flux * self.hsiao_binw, axis=1)
         if compute_luminosity:
-            distfac = 4 * np.pi * Planck13.luminosity_distance(self.lc.meta['zcmb']).to(u.cm).value**2
+            distfac = 4 * np.pi * Planck13.luminosity_distance(
+                self.lc.meta['zcmb']).to(u.cm).value**2
             lum = flux * distfac
             return lum
         return flux
@@ -548,19 +576,11 @@ def restart(checkpoint_filename, iteration=None, stage=None):
             i = iteration
         
         # Read MCMC configuration parameters.
-        nph = f['nph'][()]
-        nl = f['nl'][()]
-        if nl == -1:
-            nl = None
         nwalkers = f['nwalkers'][()]
-        lc_filename = f['lc_filename'][()]
-        exclude_bands = f['exclude_bands'][()]
-        dust_type = f['dust_type'][()]
-        rv_bintype = f['rv_bintype'][()]
-        splint_order = f['splint_order'][()]
         nthreads = f['nthreads'][()]
-        t0 = f['t0'][()]
-        amplitude = f['amplitude'][()]
+
+        # Reconstruct the FitContext.
+        fc = reconstruct_fitcontext_from_h5(f)
         
         # Read the random state.
         rstate = ('MT19937', # See
@@ -576,17 +596,9 @@ def restart(checkpoint_filename, iteration=None, stage=None):
     
         # And probabilities. 
         prob = cs['prob'][i]
-
-        # Create the likelihood.
-        fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
-                        exclude_bands=exclude_bands, dust_type=dust_type,
-                        rv_bintype=rv_bintype, splint_order=splint_order)
-        fc.t0 = t0
-        fc.amplitude = amplitude
         
         # And the sampler. 
-        sampler = emcee.EnsembleSampler(nwalkers, fc.D, fc, threads=nthreads)
-        
+        sampler = emcee.EnsembleSampler(nwalkers, fc.D, fc, threads=nthreads)        
         # Restarting during the burn-in stage is a bit different from
         # restarting during the sampling stage, because we have to
         # transition to the sampling stage afterward. 
