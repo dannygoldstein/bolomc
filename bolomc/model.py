@@ -119,7 +119,6 @@ def initialize_hdf5_group(group, fc, nsamp, nwalkers):
     group.create_dataset('prob', probs, dtype='float64')
     group.create_dataset('afrac', afs, dtype='float64')
     group.create_dataset('bolo', bs, dtype='float64')
-    group.create_dataset('last_index_filled', (), dtype=int)
     
     # Initialize the random state arrays. 
     group.create_dataset('rstate1', states, dtype='uint32')
@@ -128,6 +127,7 @@ def initialize_hdf5_group(group, fc, nsamp, nwalkers):
     group.create_dataset('rstate4', (nsamp,), dtype='float64')
 
     group['niter'] = nsamp
+    group['last_index_filled'] = -1
 
     return group
 
@@ -155,13 +155,14 @@ class FitContext(object):
                  exclude_bands=EXCLUDE_BANDS, rv_bintype=RV_BINTYPE,
                  splint_order=SPLINT_ORDER):
 
+        # Create the FitContext attributes.
         self.dust_type = dust(dust_type)
         self.exclude_bands = exclude_bands
         self.splint_order = splint_order
-        
         self.nph = nph
         self.nl = nl
 
+        # Read in the data to be fit. 
         self.lc = sncosmo.read_lc(lc_filename, format='csp')
         self.lc['wave_eff'] = map(filter_to_wave_eff, self.lc['filter'])
         self.lc.sort(['mjd', 'wave_eff'])
@@ -175,8 +176,8 @@ class FitContext(object):
                       band in np.unique(self.lc['filter']) if
                       band not in self.exclude_bands]
 
-        # Load Hsiao SED into memory here so you don't have to load it
-        # every time create_model is called.
+        # Load Hsiao SED into memory here so it doesn't have to be
+        # loaded every time _create_model is called.
 
         self.hsiao = sncosmo.get_source('hsiao', version='3.0')
         
@@ -189,9 +190,10 @@ class FitContext(object):
                                           self.rv_bintype,
                                           self.dust_type)
 
+        # Hyperparameter priors (shapes from sklearn REML
+        # optimization).
+        
         self.lp_prior = TruncNorm(0, np.inf, 3.5, 0.3)
-
-        # This may be too tight
         self.llam_prior = TruncNorm(0, np.inf, 600., 15.)
 
         # set up coarse grid
@@ -236,20 +238,31 @@ class FitContext(object):
         self.hsiao_binw = np.gradient(self.hsiao._wave)
         
 
-        self.lc['mjd'] = self.lc['mjd'] - self.t0
 
         # This is defined here and used repeatedly in the logprior
         # calculation.
     
         self.diffmat = self.xstar[:, None] - self.xstar[None, :]
         
+    @property
+    def t0(self):
+        return self._t0
 
+    @t0.setter
+    def t0(self, x):
+        try:
+            self.lc['mjd'] = self.lc['mjd'] + self.t0
+        except AttributeError:
+            pass
+        self._t0 = x
+        self.lc['mjd'] = self.lc['mjd'] - self.t0
+    
     def _regrid_hsiao(self, warp_f):
         """Take an SED warp matrix defined on a coarse grid and interpolate it
         to the hsiao grid using a spline.
 
         """
-        
+
         spl = RectBivariateSpline(self.xstar_p, 
                                   self.xstar_l,
                                   warp_f, 
@@ -322,7 +335,7 @@ class FitContext(object):
         
         lp__ = 0
         model = self._create_model(params)
-        flux = model.bandflux(self.lc['filter'], 
+        flux = model.bandflux(self.lc['filter'],
                               self.lc['mjd'])
 
         # model / data likelihood calculation 
@@ -427,7 +440,8 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
 
     with out:
         out.create_dataset('init_params', data=pvecs)
-
+        out.create_dataset('current_stage', (), dtype=int)
+        
         # These are constant for the duartion of the MCMC. 
 
         out['nph'] = fc.nph
@@ -439,6 +453,8 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
         out['lc_filename'] = lc_filename.name
         out['exclude_bands'] = exclude_bands
         out['rv_bintype'] = rv_bintype
+        out['t0'] = fc.t0
+        out['amplitude'] = fc.amplitude
                 
         burn = out.create_group('burn')
         samp = out.create_group('samples')
@@ -530,6 +546,8 @@ def restart(checkpoint_filename, iteration=None, stage=None):
         rv_bintype = f['rv_bintype'][()]
         splint_order = f['splint_order'][()]
         nthreads = f['nthreads'][()]
+        t0 = f['t0'][()]
+        amplitude = f['amplitude'][()]
         
         # Read the random state.
         rstate = ('MT19937', # See
@@ -550,6 +568,8 @@ def restart(checkpoint_filename, iteration=None, stage=None):
         fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
                         exclude_bands=exclude_bands, dust_type=dust_type,
                         rv_bintype=rv_bintype, splint_order=splint_order)
+        fc.t0 = t0
+        fc.amplitude = amplitude
         
         # And the sampler. 
         sampler = emcee.EnsembleSampler(nwalkers, fc.D, fc, threads=nthreads)
@@ -564,7 +584,7 @@ def restart(checkpoint_filename, iteration=None, stage=None):
 
         if startinburn: 
 
-            nburn = f['burn']['niter'][()] - i 
+            nburn = f['burn']['niter'][()] - i - 1
             nsamp = f['samples']['niter'][()]
 
             # 0 = burn-in, 1 = sampling
@@ -578,9 +598,9 @@ def restart(checkpoint_filename, iteration=None, stage=None):
             
             logging.info('resuming burn-in')
             for j, result in enumerate(sgen_burn):
-                record(result, burn, fc, sampler, i + j)
+                record(result, burn, fc, sampler, i + j + 1)
                 logging.info('burn-in iteration %d, med lnprob: %f',
-                             i + j, np.median(result[1]))
+                             i + j + 1, np.median(result[1]))
                 logging.info('median acceptance fraction = %f' % \
                              np.median(sampler.acceptance_fraction))
             logging.info('burn-in complete')
