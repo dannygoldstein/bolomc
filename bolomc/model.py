@@ -409,11 +409,14 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
                     exclude_bands=exclude_bands, dust_type=dust_type,
                     rv_bintype=rv_bintype, splint_order=splint_order)
 
-    # create initial parameter vectors
+    # Create initial parameter vectors. 
     pvecs = list()
 
     diffs = fc.xstar[:, None] - fc.xstar[None, :]
     nmat = np.diag(np.ones(diffs.shape[0]) * NUG)
+
+    # TODO: Implement more principled initialization for warping
+    # function parameters.
     
     for i in range(nwalkers):
         lp = fc.lp_prior.rvs()
@@ -426,7 +429,11 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
         sigma = ETA_SQ * np.exp(-np.sum(sigma * sigma, axis=-1))
         sigma += nmat
         mu = np.ones(sigma.shape[0])
-        sedw = stats.multivariate_normal.rvs(mean=mu, cov=sigma)
+
+        # Ensure all initial warping function values are positive.
+        sedw = np.ones_like(mu) * -1
+        while (sedw < 0).any():
+            sedw = stats.multivariate_normal.rvs(mean=mu, cov=sigma)
         
         pvecs.append(np.concatenate(([lp, llam, rv, ebv], sedw)))
     
