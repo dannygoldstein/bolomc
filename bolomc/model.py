@@ -161,6 +161,7 @@ class FitContext(object):
         self.splint_order = splint_order
         self.nph = nph
         self.nl = nl
+        self.passed_nl = nl
 
         # Read in the data to be fit. 
         self.lc = sncosmo.read_lc(lc_filename, format='csp')
@@ -243,7 +244,7 @@ class FitContext(object):
         # calculation.
     
         self.diffmat = self.xstar[:, None] - self.xstar[None, :]
-        
+
     @property
     def t0(self):
         return self._t0
@@ -445,7 +446,10 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
         # These are constant for the duartion of the MCMC. 
 
         out['nph'] = fc.nph
-        out['nl'] = fc.nl
+        if fc.passed_nl is not None:
+            out['nl'] = fc.passed_nl
+        else:
+            out['nl'] = -1 
         out['nwalkers'] = nwalkers
         out['nthreads'] = nthreads
         out['dust_type'] = dust_type
@@ -539,6 +543,8 @@ def restart(checkpoint_filename, iteration=None, stage=None):
         # Read MCMC configuration parameters.
         nph = f['nph'][()]
         nl = f['nl'][()]
+        if nl == -1:
+            nl = None
         nwalkers = f['nwalkers'][()]
         lc_filename = f['lc_filename'][()]
         exclude_bands = f['exclude_bands'][()]
