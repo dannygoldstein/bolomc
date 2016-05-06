@@ -3,11 +3,10 @@ __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Light curve plotting utilities.'
 
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import sncosmo
 
-sns.set_style('ticks')
+hasplt = False
+hassns = False
 
 class LCStack(object):
     
@@ -25,6 +24,15 @@ class LCStack(object):
         self.name = name
 
     def plot(self, L=None):
+        if not hasplt:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            hasplt = True
+        if not hassns:
+            import seaborn as sns
+            sns.set_style('ticks')
+            hassns = True
         fig, ax = plt.subplots()
         if L is None:
             L = self.L.reshape(-1, 106)
