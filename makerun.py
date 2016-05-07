@@ -10,16 +10,16 @@ exe = os.path.join('/'.join(os.path.abspath(__file__).split('/')[:-1]),
 # Parameters
 
 #LOGFILE = None # Use stdout.
-NBURN = 10000 # Number of burn-in iterations.
-NSAMP = 500 # Number of sampling iterations.
+NBURN = 5000 # Number of burn-in iterations.
+NSAMP = 50 # Number of sampling iterations.
 #NL = None # Number of wavelength knots (regular grid).
-NWALKERS = 1000 # Number of walkers in the ensemble.
-NTHREADS = 4 # Number of threads for MCMC sampling. 
+NWALKERS = 300 # Number of walkers in the ensemble.
+NTHREADS = 2 # Number of threads for MCMC sampling. 
 #EXCLUDE_BANDS = [] # Fit all bandpasses given. 
 #DUST_TYPE = 'OD94' # Host galaxy dust reddening law.
 #RV_BINTYPE = 'gmm' # Host galaxy Rv prior type. 
 #SPLINT_ORDER = 3 # Spline interpolation order.
-NPH = 36
+NPH = 10
 
 
 basecmd = """
