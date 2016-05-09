@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import seaborn as sns
 import numpy as np
+import h5py
 
 def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
     """Produce a heatmap of a spectral warping surface. pgrid is the 1D
@@ -81,7 +82,30 @@ def center(bins):
     """Take bin edges and return the bin centers."""
     return (bins[:-1] + bins[1:]) / 2.
 
-def plot_chains(chains, param_names=None, filename=None):
+def read_chains(h5, full_output=False):
+    """Read in the HDF5 result file `h5` and return the chains in the
+    format required by `plot_chains`."""
+
+    # Read in the file. 
+    with h5py.File(h5) as f:
+        # Prepare the parameter arrays. 
+        stage = f['current_stage'][()]
+        i_burn = f['burn']['last_index_filled'][()]
+        params = f['burn']['params'][:i_burn + 1]
+        division = None
+        if stage: # = if burn-in is complete
+            i_samp = f['samples']['last_index_filled'][()]
+            samp = f['samples']['params'][:i_samp + 1]
+            params = np.vstack((params, samp))
+            division = i_burn
+            
+        # Get the array in the right shape for `plot_chains`. 
+        reshaped = np.swapaxes(params, 0, 2)
+    return (reshaped, division) if full_output else reshaped
+        
+
+def plot_chains(chains, param_names=None, filename=None, boundary=None):
+
     """Plot the paths of MCMC chains in parameter space. Chains should
     have shape npar, nwal, nt."""
     
@@ -118,7 +142,12 @@ def plot_chains(chains, param_names=None, filename=None):
             
             # plot the chains of the walkers on top of each other. 
             ca.plot(x, w, 'k', lw=1)
-        
+            
+        # plot the boundary between burn-in and sampling as a vertical
+        # line
+        if boundary is not None:
+            ca.axvline(x=boundary)
+
         # Compute the marginal histogram...
         n, bins = np.histogram(p, bins=bins)
         
