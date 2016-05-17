@@ -3,11 +3,11 @@
 __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Plotting tools for bolomc.'
 
+import matplotlib
+matplotlib.use("Agg")
+
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.gridspec import GridSpec
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import seaborn as sns
+
 import numpy as np
 import h5py
 
@@ -18,7 +18,9 @@ def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
     the grid.
 
     """
-
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import matplotlib.cm as cm
     fig, ax = plt.subplots(figsize=(5,10))
     m = cm.get_cmap('viridis')
     
@@ -36,6 +38,31 @@ def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
 
     fig.colorbar(res)
     return fig
+
+def plot_wsurf2(model):
+    """Produce a joy division plot of a spectral surface by
+    evaluating the sncosmo.Model `model` on the hsiao grid points."""
+
+    import matplotlib.pyplot as plt
+    
+    fig, ax = plt.subplots(figsize=(5,10))
+
+    pgrid = model.source._phase
+    wgrid = model.source._wave
+    flux = model.source._passed_flux
+    nph = pgrid.size
+                
+    # Plot the surface.
+    
+    fm = flux.max()
+
+    for i, spec in enumerate(flux[2:102]):
+        if i < 20:
+            ax.plot(wgrid, (nph - i) * -np.log10(fm)  + 100 * np.log10(spec), 'k')
+        if i >= 20:
+            ax.plot(wgrid, (nph - i - 20) * -np.log10(fm)  + 100 * np.log10(spec), 'k')
+
+    return fig    
 
 
 def plot_wslices(pgrid, wgrid, warp):
@@ -86,6 +113,9 @@ def read_chains(h5, full_output=False):
     """Read in the HDF5 result file `h5` and return the chains in the
     format required by `plot_chains`."""
 
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
     # Read in the file. 
     with h5py.File(h5) as f:
         # Prepare the parameter arrays. 
@@ -108,6 +138,10 @@ def plot_chains(chains, param_names=None, filename=None, boundary=None):
 
     """Plot the paths of MCMC chains in parameter space. Chains should
     have shape npar, nwal, nt."""
+
+    from matplotlib.gridspec import GridSpec
+    import matplotlib.pyplot as plt
+    import seaborn as sns
     
     s = chains.shape
     x = np.arange(1, s[-1] + 1)
