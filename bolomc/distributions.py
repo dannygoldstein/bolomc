@@ -36,3 +36,9 @@ class TruncNorm(object):
         return stats.truncnorm.rvs(self.a, self.b, loc=self.loc, 
                                    scale=self.scale, size=n)
 
+
+    @property
+    def mean(self):
+        return stats.truncnorm.mean(self.a, self.b, loc=self.loc,
+                                    scale=self.scale)
+        

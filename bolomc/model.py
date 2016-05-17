@@ -155,9 +155,6 @@ def reconstruct_fitcontext_from_h5(f):
 
     return fc
 
-
-
-
 def dust(s):
     """Convert the string representation of `s` of an sncosmo dust class
     to its class."""
@@ -253,18 +250,39 @@ class FitContext(object):
                                   effect_frames=['rest', 'obs'])
 
         guess_mod.set(z=self.lc.meta['zcmb'])
-        guess_mod.set(hostebv=self.ebv_prior.rvs())
-        guess_mod.set(hostr_v=self.rv_prior.rvs())
+        guess_mod.set(hostebv=self.ebv_prior.mean)
+        guess_mod.set(hostr_v=self.rv_prior.mean)
         guess_mod.set(mwebv=self.mwebv)
+        
+        # To avoid egregiously bad guesses of t0, we will give sncosmo
+        # an initial guess for the mjd of B-band maximum by scraping
+        # the results of SNooPy fits to the photometry from the CSP
+        # website (read here from a file).
+        
+        try:
+            t0 = get_t0(self.lc.meta['name'])
+        except KeyError:
+            # If the SN does not have a t0 estimate from CSP, fit it.
+            res, fitted_model = sncosmo.fit_lc(self.lc,
+                                               guess_mod,
+                                               ['amplitude', 
+                                                't0'])
 
-        res, fitted_model = sncosmo.fit_lc(self.lc, guess_mod, ['amplitude','t0'])
+        else:
+            guess_mod.set(t0=t0)
+            res, fitted_model = sncosmo.fit_lc(self.lc,
+                                               guess_mod,
+                                               ['amplitude'])            
+
         if not res['success']:
             raise FitError(res['message'])
 
         self.amplitude = res['parameters'][2]
-        self.t0 = res['parameters'][1]
+        self.t0 = t0
+
+        # Fit the model. 
+
         self.hsiao_binw = np.gradient(self.hsiao._wave)
-        
 
 
         # This is defined here and used repeatedly in the logprior
