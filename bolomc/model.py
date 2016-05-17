@@ -155,9 +155,6 @@ def reconstruct_fitcontext_from_h5(f):
 
     return fc
 
-
-
-
 def dust(s):
     """Convert the string representation of `s` of an sncosmo dust class
     to its class."""
@@ -256,8 +253,22 @@ class FitContext(object):
         guess_mod.set(hostebv=self.ebv_prior.rvs())
         guess_mod.set(hostr_v=self.rv_prior.rvs())
         guess_mod.set(mwebv=self.mwebv)
+        
+        # To avoid egregiously bad guesses of t0, we will give sncosmo
+        # an initial guess for the mjd of B-band maximum by scraping
+        # the results of SNooPy fits to the photometry from the CSP
+        # website (read here from a cached file).
+        
+        try:
+            t0 = get_t0(self.lc.meta['name'])
+        except KeyError:
+            pass
+        else:
+            guess_mod.set(t0=t0)
 
+        # Fit the model. 
         res, fitted_model = sncosmo.fit_lc(self.lc, guess_mod, ['amplitude','t0'])
+
         if not res['success']:
             raise FitError(res['message'])
 
