@@ -49,13 +49,15 @@ nmersenne = 624 # size of MT state vector
 LOGFILE = None # Use stdout.
 NBURN = 1000 # Number of burn-in iterations.
 NSAMP = 1000 # Number of sampling iterations.
-NL = None # Number of wavelength knots (regular grid).
 NWALKERS = 200 # Number of walkers in the ensemble.
 NTHREADS = 1 # Number of threads for MCMC sampling. 
 EXCLUDE_BANDS = [] # Fit all bandpasses given. 
 DUST_TYPE = 'OD94' # Host galaxy dust reddening law.
 RV_BINTYPE = 'gmm' # Host galaxy Rv prior type. 
 SPLINT_ORDER = 3 # Spline interpolation order.
+M = 20 # Number of warping surface control points. 
+LP = 3.5 # Phase length scale (days).
+LLAM = 600. # Wavelength length scale (AA). 
 
 ######################################################
 # HELPERS ############################################
@@ -71,7 +73,7 @@ def record(result, group, fc, sampler, i):
     
     for k in range(pos.shape[0]):
         try:
-            vec = ParamVec(pos[k], fc.nph, fc.nl)
+            vec = ParamVec(pos[k], fc.m)
         except BoundsError as e:
             bolo = np.zeros(fc.hsiao._phase.shape[0]) * np.nan
         else:
@@ -134,10 +136,7 @@ def initialize_hdf5_group(group, fc, nsamp, nwalkers):
 
 def reconstruct_fitcontext_from_h5(f):
     
-    nph = f['nph'][()]
-    nl = f['nl'][()]
-    if nl == -1:
-        nl = None
+    m = f['m'][()]
     lc_filename = f['lc_filename'][()]
     exclude_bands = f['exclude_bands'][()]
     dust_type = f['dust_type'][()]
@@ -147,7 +146,7 @@ def reconstruct_fitcontext_from_h5(f):
     amplitude = f['amplitude'][()]
 
     # Create the likelihood.
-    fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
+    fc = FitContext(lc_filename=lc_filename, m=m,
                     exclude_bands=exclude_bands, dust_type=dust_type,
                     rv_bintype=rv_bintype, splint_order=splint_order)
     fc.t0 = t0
@@ -175,7 +174,7 @@ class FitContext(object):
 
     """
     
-    def __init__(self, lc_filename, nph, nl=NL, dust_type=DUST_TYPE,
+    def __init__(self, lc_filename, m=M, dust_type=DUST_TYPE,
                  exclude_bands=EXCLUDE_BANDS, rv_bintype=RV_BINTYPE,
                  splint_order=SPLINT_ORDER):
 
@@ -183,9 +182,7 @@ class FitContext(object):
         self.dust_type = dust(dust_type)
         self.exclude_bands = exclude_bands
         self.splint_order = splint_order
-        self.nph = nph
-        self.nl = nl
-        self.passed_nl = nl
+        self.m = m
 
         # Read in the data to be fit. 
         self.lc = sncosmo.read_lc(lc_filename, format='csp')
@@ -214,12 +211,6 @@ class FitContext(object):
         self.rv_prior  = get_hostrv_prior(self.lc.meta['name'],
                                           self.rv_bintype,
                                           self.dust_type)
-
-        # Hyperparameter priors (shapes from sklearn REML
-        # optimization).
-        
-        self.lp_prior = TruncNorm(0, np.inf, 3.5, 0.3)
-        self.llam_prior = TruncNorm(0, np.inf, 600., 15.)
 
         # set up coarse grid
         self.xstar_p = np.linspace(self.hsiao._phase[0], 
@@ -429,22 +420,22 @@ class FitContext(object):
 
     def __call__(self, params):
         try:
-            vec = ParamVec(params, self.nph, self.nl)
+            vec = ParamVec(params, self.m)
         except BoundsError as e:
             return -np.inf
         return self.logprior(vec) + self.loglike(vec)
 
     @property
     def D(self):
-        return 4 + self.nph * self.nl
+        return 4 + self.m
                          
-def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL, 
+def main(lc_filename, m, outfile, nburn=NBURN, nsamp=NSAMP, 
          nwalkers=NWALKERS, nthreads=NTHREADS, exclude_bands=EXCLUDE_BANDS,
          dust_type=DUST_TYPE, rv_bintype=RV_BINTYPE, 
          splint_order=SPLINT_ORDER):
     
     # Fit a single light curve with the model.
-    fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
+    fc = FitContext(lc_filename=lc_filename, m=m,
                     exclude_bands=exclude_bands, dust_type=dust_type,
                     rv_bintype=rv_bintype, splint_order=splint_order)
 
@@ -491,11 +482,7 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
         
         # These are constant for the duartion of the MCMC. 
 
-        out['nph'] = fc.nph
-        if fc.passed_nl is not None:
-            out['nl'] = fc.passed_nl
-        else:
-            out['nl'] = -1 
+        out['m'] = m
         out['nwalkers'] = nwalkers
         out['nthreads'] = nthreads
         out['dust_type'] = dust_type
@@ -687,19 +674,17 @@ if __name__ == "__main__":
     # Arguments for the `run` parser, which handles starting new MCMC runs. 
     primary_parser.add_argument('lc_filename', help='The name of the light ' \
                         'curve file to fit.', type=argparse.FileType('r'))
-    primary_parser.add_argument('nph', help='The number of phase points to use.',
-                        type=int)
     primary_parser.add_argument('outfile', help='The name of the hdf5 ' \
                         'file to store the MCMC results.', type=str)
+                        'curve file to fit.', type=argparse.FileType('r'))
+    primary_parser.add_argument('--m', help='The number of control points to use to fit' \
+                                'the warping surface.' type=int, default=M)
     primary_parser.add_argument('--logfile', help='The name of the MCMC logfile.',
                         default=LOGFILE, dest='logfile')
     primary_parser.add_argument('--nburn', help='Number of burn-in iterations.',
                         default=NBURN, type=int, dest='nburn')
     primary_parser.add_argument('--nsamp', help='Number of sampling iterations.',
                         default=NSAMP, type=int, dest='nsamp')
-    primary_parser.add_argument('--nl', help='Enables a regularly spaced wavelength ' \
-                        'grid, and specifies the number of points to use.',
-                        type=int, default=NL, dest='nl')
     primary_parser.add_argument('--nwalkers', help='Number of walkers to use.',
                         type=int, default=NWALKERS, dest='nwalkers')
     primary_parser.add_argument('--nthreads', help='Number of MCMC threads to use.',
@@ -714,6 +699,11 @@ if __name__ == "__main__":
                         ' law.', dest='rv_bintype', 
                         default=RV_BINTYPE, choices=['gmm', 'uniform',
                                                      'binned'])
+    primary_parser.add_argument('--lp', help='Phase length scale (days).',
+                                type=float, default=LP)
+    primary_parser.add_argument('--llam', help='Wavelength length scale (AA).',
+                                type=float, default=LLAM)
+    
     primary_parser.add_argument('--splint_order', help='Spline interpolation order.',
                         dest='splint_order', type=int,
                         default=SPLINT_ORDER, choices=[1,2,3])
@@ -752,9 +742,10 @@ if __name__ == "__main__":
         restart(args.checkpoint_filename, iteration=args.iteration,
                 stage=args.stage)
     elif args.subparser_name == 'run':
-        main(lc_filename=args.lc_filename, nph=args.nph, outfile=args.outfile,
-             nburn=args.nburn, nsamp=args.nsamp, nl=args.nl, 
+        main(lc_filename=args.lc_filename, m=m, outfile=args.outfile,
+             nburn=args.nburn, nsamp=args.nsamp, 
              nwalkers=args.nwalkers, nthreads=args.nthreads,
              exclude_bands=args.exclude_bands, dust_type=args.dust_type,
-             rv_bintype=args.rv_bintype, splint_order=args.splint_order)
+             rv_bintype=args.rv_bintype, splint_order=args.splint_order,
+             
         
