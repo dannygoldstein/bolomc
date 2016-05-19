@@ -6,16 +6,6 @@ import numpy as np
 from errors import BoundsError
 
 class ParamVec(object):
-
-    @classmethod
-    def from_file(cls, f):
-        with open(f, 'r') as f:
-            r1 = f.readline()
-            nph, nl = [int(e[3:]) for e in r1.split()]
-            a = np.genfromtxt(f)
-        idx = a[:, :2].astype('<i8')
-        shape = idx.max(0) + 1
-        return np.asarray([cls(r, nph, nl) for r in a[:, 3:]]).reshape(*shape)
         
     def __init__(self, vec, nph, nl, check_bounds=True):
         self.vec = vec
@@ -84,4 +74,4 @@ class ParamVec(object):
         
     @property
     def D(self):
-        return 4 + self.sedw.size
+        return self.vec.size

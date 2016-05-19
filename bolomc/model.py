@@ -26,6 +26,7 @@ from vec import ParamVec
 
 import h5py
 import emcee
+import george
 
 import logging
 import argparse
@@ -56,6 +57,8 @@ EXCLUDE_BANDS = [] # Fit all bandpasses given.
 DUST_TYPE = 'OD94' # Host galaxy dust reddening law.
 RV_BINTYPE = 'gmm' # Host galaxy Rv prior type. 
 SPLINT_ORDER = 3 # Spline interpolation order.
+NL_DENSE = 200 # Number of wl knots (dense grid). 
+NPH_DENSE = 100 # Number of phase knots (dense grid). 
 
 ######################################################
 # HELPERS ############################################
@@ -73,7 +76,7 @@ def record(result, group, fc, sampler, i):
         try:
             vec = ParamVec(pos[k], fc.nph, fc.nl)
         except BoundsError as e:
-            bolo = np.zeros(fc.hsiao._phase.shape[0]) * np.nan
+            bolo = np.zeros_like(fc.xstar_p_dense) * np.nan
         else:
             bolo = fc.bolo(vec, compute_luminosity=True)
         bolos.append(bolo)
@@ -109,7 +112,7 @@ def create_output_file(fname):
 
 def initialize_hdf5_group(group, fc, nsamp, nwalkers):
 
-    bs = (nsamp, nwalkers, fc.hsiao._phase.shape[0])
+    bs = (nsamp, nwalkers, fc.xstar_p_dense.shape[0])
     afs = (nsamp, nwalkers)
     pars = (nsamp, nwalkers, fc.D)
     probs = (nsamp, nwalkers)
@@ -145,11 +148,14 @@ def reconstruct_fitcontext_from_h5(f):
     splint_order = f['splint_order'][()]
     t0 = f['t0'][()]
     amplitude = f['amplitude'][()]
+    nl_dense = f['nl_dense'][()]
+    nph_dense = f['nph_dense'][()]
 
-    # Create the likelihood.
+    # Create the posterior.
     fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
                     exclude_bands=exclude_bands, dust_type=dust_type,
-                    rv_bintype=rv_bintype, splint_order=splint_order)
+                    rv_bintype=rv_bintype, splint_order=splint_order,
+                    nph_dense=nph_dense, nl_dense=nl_dense)
     fc.t0 = t0
     fc.amplitude = amplitude
 
@@ -177,7 +183,8 @@ class FitContext(object):
     
     def __init__(self, lc_filename, nph, nl=NL, dust_type=DUST_TYPE,
                  exclude_bands=EXCLUDE_BANDS, rv_bintype=RV_BINTYPE,
-                 splint_order=SPLINT_ORDER):
+                 splint_order=SPLINT_ORDER, nl_dense=NL_DENSE, 
+                 nph_dense=NPH_DENSE):
 
         # Create the FitContext attributes.
         self.dust_type = dust(dust_type)
@@ -186,6 +193,8 @@ class FitContext(object):
         self.nph = nph
         self.nl = nl
         self.passed_nl = nl
+        self.nl_dense = nl_dense
+        self.nph_dense = nph_dense
 
         # Read in the data to be fit. 
         self.lc = sncosmo.read_lc(lc_filename, format='csp')
@@ -238,10 +247,26 @@ class FitContext(object):
             self.xstar_l = np.linspace(self.hsiao._wave[0],
                                        self.hsiao._wave[-1],
                                        self.nl)
+            
+        if self.passed_nl is None and self.nl_dense < self.nl:
+            raise ValueError("nl_dense cannot be less than nl")
+
+        # set up the dense grid
+        
+        self.xstar_p_dense = np.linspace(self.hsiao._phase[0],
+                                         self.hsiao._phase[-1],
+                                         self.nph_dense)
+        
+        self.xstar_l_dense = np.linspace(self.hsiao._wave[0],
+                                         self.hsiao._wave[-1],
+                                         self.nl_dense)
         
         # Weave the full grid [a list of (phase, wavelength) points]. 
         self.xstar = np.asarray(list(product(self.xstar_p, 
                                              self.xstar_l)))
+        
+        self.xstar_dense = np.asarray(list(product(self.xstar_p_dense,
+                                                   self.xstar_l_dense)))
 
         # Get an initial guess for amplitude and t0.
         guess_mod = sncosmo.Model(source=self.hsiao,
@@ -278,17 +303,13 @@ class FitContext(object):
             raise FitError(res['message'])
 
         self.amplitude = res['parameters'][2]
-        self.t0 = t0
-
-        # Fit the model. 
-
-        self.hsiao_binw = np.gradient(self.hsiao._wave)
-
-
-        # This is defined here and used repeatedly in the logprior
-        # calculation.
-    
-        self.diffmat = self.xstar[:, None] - self.xstar[None, :]
+        self.t0 = res['parameters'][1]
+        self.binw = np.gradient(self.xstar_l_dense)
+        
+        # This array gets warped 
+        self.template_flux = self.hsiao.flux(*self.xstar_dense.T)\
+                                       .reshape(self.nph_dense,
+                                                self.nl_dense)
 
     @property
     def t0(self):
@@ -303,34 +324,44 @@ class FitContext(object):
         self._t0 = x
         self.lc['mjd'] = self.lc['mjd'] - self.t0
     
-    def _regrid_hsiao(self, warp_f):
+    def _regrid_hsiao(self, sedw, gp=None):
         """Take an SED warp matrix defined on a coarse grid and interpolate it
-        to the hsiao grid using a spline.
+        to the hsiao grid using a spline."""
 
-        """
+        # N^2 
+        # TODO:: Time this
 
-        spl = RectBivariateSpline(self.xstar_p, 
-                                  self.xstar_l,
-                                  warp_f, 
-                                  kx=self.splint_order,
-                                  ky=self.splint_order)
-        
-        return spl(self.hsiao._phase,
-                   self.hsiao._wave)
+        # Check to see if it is fast enough to predict on the full
+        # hsiao grid, doing away with the tunable "dense"
+        # representation entirely
 
-    def _create_model(self, params):
+        # Also need to test this to make sure it's doing what you
+        # think it's doing, i.e., is it returnining an (nph_dense,
+        # nl_dense) matrix with elements that correspond to the
+        # appropriate positions on the dense grid.
+
+        # TODO:: Figure out how to make this `sample_conditional`. 
+        pred = gp.predict(sedw, self.xstar_dense, mean_only=True)
+        return pred.reshape(self.nph_dense, self.nl_dense)
+
+    def _create_model(self, params, gp=None):
         """If source is None, use Hsiao."""
         
         # warp the SED
-        flux = self._regrid_hsiao(params.sedw) * self.hsiao._passed_flux
-        source = sncosmo.TimeSeriesSource(self.hsiao._phase,
-                                          self.hsiao._wave,
+        warp = self._regrid_hsiao(params.sedw, gp=gp)
+        flux = warp * self.template_flux
+        source = sncosmo.TimeSeriesSource(self.xstar_p_dense,
+                                          self.xstar_l_dense,
                                           flux)
         
         model = sncosmo.Model(source=source,
                               effects=[self.dust_type(), sncosmo.F99Dust()],
                               effect_names=['host','mw'],
                               effect_frames=['rest','obs'])
+
+        # Cache the dense warping surface as an attribute of the model
+        # so it can be saved to HDF5.
+        model.sedw = warp 
 
         # spectroscopic redshift
         model.set(z=self.lc.meta['zcmb'])
@@ -339,7 +370,7 @@ class FitContext(object):
         # will fix it for simplicity
         model.set(mwebv=self.mwebv)
 
-        # Draw random host reddening parameters. 
+       # Draw random host reddening parameters. 
         model.set(hostr_v=params.rv)
         model.set(hostebv=params.ebv)
         
@@ -350,33 +381,30 @@ class FitContext(object):
         #model.set(t0=self.t0)
 
         return model
-
-    def logprior(self, params):
-        """Compute logp(params)."""
-
-        lp__ = 0
         
-        lp__ += self.ebv_prior(params.ebv)
-        lp__ += self.rv_prior(params.rv)
-
+    def _create_gp(self, params):
+        
         # Gaussian process prior.
         # Reshape parameters somewhat. 
         sedw = params.sedw.ravel()
         l = np.asarray([params.lp, params.llam])
 
-        # Compute the covariance matrix. 
-        sigma = self.diffmat / l
-        sigma =  np.exp(-np.sum(sigma * sigma, axis=-1))
-        sigma *= ETA_SQ # eta-sq is fixed now, but it may float in
-                        # future versions.
-        sigma += np.eye(sedw.size) * NUG # nug is fixed now, but it
-                                         # may float in future
-                                         # versions.
-        mu = np.ones(sedw.size) # mean vector is 1 (no warping). 
-        lp__ += stats.multivariate_normal.logpdf(sedw, mean=mu, cov=sigma)
+        # Do GP stuff with george. 
+        kernel = ETA_SQ * george.kernels.ExpSquaredKernel(l, ndim=2)
+        gp = george.GP(kernel, mean=1)
+        gp.compute(self.xstar, yerr=NUG)
+        
+        return gp
+
+    def logprior(self, params, gp=None):
+        """Compute logp(params)."""
+        lp__ = 0
+        lp__ += self.ebv_prior(params.ebv)
+        lp__ += self.rv_prior(params.rv)
+        lp__ += gp.lnlikelihood(sedw)
         return lp__
 
-    def loglike(self, params):
+    def loglike(self, params, gp=None):
         """Compute loglike(params)."""
         
         lp__ = 0
@@ -384,18 +412,20 @@ class FitContext(object):
         flux = model.bandflux(self.lc['filter'],
                               self.lc['mjd'])
 
-        # model / data likelihood calculation 
-        sqerr = stats.norm.logpdf(flux, 
-                                  loc=self.lc['flux'], 
+        # model / data likelihood calculation
+        sqerr = stats.norm.logpdf(flux,
+                                  loc=self.lc['flux'],
                                   scale=self.lc['fluxerr'])
         lp__ += np.sum(sqerr)
         return lp__
 
     def bolo(self, params, compute_luminosity=False):
-        """Compute a bolometric flux curve for `params`."""
+        """Compute a bolometric flux curve for `params`. Optionally, return a
+        bolometric _light_ curve by using the luminosity distance to the
+        redshift of the SN using the Planck13 cosmology results."""
         flux = self._regrid_hsiao(params.sedw) * self.hsiao._passed_flux
         flux *= self.amplitude
-        flux = np.sum(flux * self.hsiao_binw, axis=1)
+        flux = np.sum(flux * self.binw, axis=1)
         if compute_luminosity:
             distfac = 4 * np.pi * Planck13.luminosity_distance(
                 self.lc.meta['zcmb']).to(u.cm).value**2
@@ -404,60 +434,81 @@ class FitContext(object):
         return flux
         
     def Lfunc(self, params):
-        x = self.hsiao._phase
+        """Return an interpolant over the bolometric light / flux curve
+        specified by `params`."""
+        x = self.xstar_p_dense 
         y = self.bolo(params, compute_luminosity=True)
         func = interp1d(x, y, kind=self.splint_order)
         return func
         
     def tpeak(self, params, retfunc=False):
+        """Estimate the rest frame phase of the peak of the 
+        bolometric light curve."""
         func = self.Lfunc(params)
         
+        # Objective function. 
         def minfunc(t):
-            # objective function
+            # "My sole purpose in life is to be minimized."
             try:
                 return -func(t) / 1e43
             except ValueError:
                 return np.inf
-    
+                
+        # Initial guess is zero of B-band. 
         res = minimize(minfunc, 0.)
         if not res.success:
             raise FitError(res.message)
+            
+        # Optionally return the interpolant. 
         return res.x if not retfunc else (res.x, func)
 
     def Lpeak(self, params):
+        """Estimate the peak luminosity of the bolometric light curve given
+        model parameter vector `params`."""
         tpeak, func = self.tpeak(params, retfunc=True)
         return func(tpeak)
     
     def dm15(self, params):
+        """Estimate the bolometric dm15 of the SN given model parameter vector
+        `params`."""
         tpeak, func = self.tpeak(params, retfunc=True)
         lpeak = func(tpeak)
-        l15 = func(tpeak + 15)
+        l15 = func(tpeak + 15) # days
         return 2.5 * np.log10(lpeak / l15)
 
     def __call__(self, params):
+        """Compute logpost(params) up to a constant."""
         try:
             vec = ParamVec(params, self.nph, self.nl)
         except BoundsError as e:
-            return -np.inf
-        return self.logprior(vec) + self.loglike(vec)
+            return -np.inf    
+        gp = self._create_gp(vec)
+        return self.logprior(vec, gp=gp) + self.loglike(vec, gp=gp)
 
     @property
     def D(self):
+        """The dimensionality of the parameter space."""
         return 4 + self.nph * self.nl
                          
 def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL, 
          nwalkers=NWALKERS, nthreads=NTHREADS, exclude_bands=EXCLUDE_BANDS,
          dust_type=DUST_TYPE, rv_bintype=RV_BINTYPE, 
-         splint_order=SPLINT_ORDER):
+         splint_order=SPLINT_ORDER, nl_dense=NL_DENSE, nph_dense=NPH_DENSE):
+    """Run MCMC."""
     
     # Fit a single light curve with the model.
     fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
                     exclude_bands=exclude_bands, dust_type=dust_type,
-                    rv_bintype=rv_bintype, splint_order=splint_order)
+                    rv_bintype=rv_bintype, splint_order=splint_order,
+                    nl_dense=nl_dense, nph_dense=nph_dense)
 
     # Create initial parameter vectors. 
-    pvecs = list()
 
+    # This code is too long and too useless. There are about five
+    # billion better ways to do this.
+    pvecs = list() # I hate this line.
+    
+    # Should use george for this. 
     diffs = fc.xstar[:, None] - fc.xstar[None, :]
     nmat = np.diag(np.ones(diffs.shape[0]) * NUG)
 
@@ -512,6 +563,8 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
         out['rv_bintype'] = rv_bintype
         out['t0'] = fc.t0
         out['amplitude'] = fc.amplitude
+        out['nl_dense'] = fc.nl_dense
+        out['nph_dense'] = fc.nph_dense
                 
         burn = out.create_group('burn')
         samp = out.create_group('samples')
@@ -725,6 +778,11 @@ if __name__ == "__main__":
                         dest='splint_order', type=int,
                         default=SPLINT_ORDER, choices=[1,2,3])
     
+    primary_parser.add_argument('--nl_dense', help='Number of wavelength knots (dense grid).',
+                                type=int, default=NL_DENSE)
+    primary_parser.add_argument('--nph_dense', help='Number of phase knots (dense grid).',
+                                type=int, default=NPH_DENSE)
+    
     # Arguments for the checkpoint restart parser.     
     checkpoint_parser.add_argument('checkpoint_filename', help='The HDF5 file containing the ' \
                                    'results and settings of the run to restart.', type=str)
@@ -738,6 +796,10 @@ if __name__ == "__main__":
                                    default=LOGFILE, dest='logfile')
 
     args = parser.parse_args()
+    if args.nl is not None and args.nl_dense < args.nl:
+        raise ValueError("nl_dense must be greater than nl")
+    if args.nph_dense < args.nph:
+        raise ValueError("nph_dense must be greater than nph")
 
     # Set the format of the log file. 
     lformat = '[%(asctime)s]: %(message)s'
@@ -760,8 +822,8 @@ if __name__ == "__main__":
                 stage=args.stage)
     elif args.subparser_name == 'run':
         main(lc_filename=args.lc_filename, nph=args.nph, outfile=args.outfile,
-             nburn=args.nburn, nsamp=args.nsamp, nl=args.nl, 
-             nwalkers=args.nwalkers, nthreads=args.nthreads,
+             nburn=args.nburn, nsamp=args.nsamp, nl=args.nl, nl_dense=args.nl_dense,
+             nph_dense=args.nph_dense, nwalkers=args.nwalkers, nthreads=args.nthreads,
              exclude_bands=args.exclude_bands, dust_type=args.dust_type,
              rv_bintype=args.rv_bintype, splint_order=args.splint_order)
         
