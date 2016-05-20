@@ -18,7 +18,7 @@ NTHREADS = 2 # Number of threads for MCMC sampling.
 #EXCLUDE_BANDS = [] # Fit all bandpasses given. 
 #DUST_TYPE = 'OD94' # Host galaxy dust reddening law.
 #RV_BINTYPE = 'gmm' # Host galaxy Rv prior type. 
-#SPLINT_ORDER = 3 # Spline interpolation order.
+SPLINT_ORDER = 1 # Spline interpolation order.
 NPH = 10
 
 
