@@ -4,8 +4,9 @@ __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Predictive model for SN Ia bolometric light curves ' \
               'given CSP photometry and host reddening estimates.'
 
-__all__ = ['FitContext', 'main', 'restart', 
-           'reconstruct_fitcontext_from_h5']
+__all__ = ['FitContext', 'main', 'restart',
+           'reconstruct_fitcontext_from_h5',
+           'reconstruct_gp']
 
 import os
 import sys
@@ -170,10 +171,12 @@ def reconstruct_fitcontext_from_h5(f):
     fc.amplitude = amplitude
     return fc
 
-def reconstruct_gp_from_h5(f, p):
-    fc = reconstruct_fitcontext_from_h5(f)
-    vec = ParamVec(p, fc.nph, fc.nl)
-    gp = fc._create_gp(vec)
+def reconstruct_gp(fc, p):
+    try:
+        gp = fc._create_gp(p)
+    except AttributeError:
+        vec = ParamVec(p, fc.nph, fc.nl)
+        gp = fc._create_gp(vec)
     gp.compute(fc.xstar, yerr=NUG)
     return gp
 
