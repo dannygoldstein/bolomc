@@ -3,6 +3,8 @@
 __author__ = "Danny Goldstein <dgold@berkeley.edu>"
 __whatami__ = "Test problem with a uniform warping surface."
 
+import matplotlib
+matplotlib.use("Agg")
 import sncosmo
 import problem
 

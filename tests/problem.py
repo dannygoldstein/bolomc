@@ -82,6 +82,6 @@ class Problem(object):
                      'zpsys':zpsyss})
         params = [dict(zip(model.param_names, model.parameters))]
         lcs = sncosmo.realize_lcs(obs, model, params)
-        lc = lcs[0]
+        lc = sncosmo.photdata.normalize_data(lcs[0])
         lc['fluxerr'] = 0.01 * lc['flux'].max()
         return lc
