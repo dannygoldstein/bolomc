@@ -4,7 +4,6 @@ __author__ = "Danny Goldstein <dgold@berkeley.edu>"
 __whatami__ = "Template for test problems."
 
 import numpy as np
-import bolomc 
 import sncosmo
 from astropy.table import Table
 

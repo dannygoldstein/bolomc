@@ -21,7 +21,9 @@ z = 0.02
 mwebv = 0.02 
 
 test = problem.Problem(sedw, rv, ebv, lp, llam, z, mwebv)
-data = test.data(20, exclude_bands=['csphd','cspjd','cspyd',
-                                    'cspv3014','cspv3009'])
-
+data = test.data(100/8, exclude_bands=['csphd','cspjd','cspyd',
+                                       'cspv3014','cspv3009'])
+sources = [problem.hsiao, test.source]
 fig = sncosmo.plot_lc(data=data)
+
+sncosmo.animate_source(sources=sources, fname='sine.mp4')
