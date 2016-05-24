@@ -61,6 +61,7 @@ DUST_TYPE = 'OD94' # Host galaxy dust reddening law.
 RV_BINTYPE = 'gmm' # Host galaxy Rv prior type. 
 SPLINT_ORDER = 3 # Spline interpolation order.
 FC_FNAME = None
+PVECS = None
 
 ######################################################
 # HELPERS ############################################
@@ -515,9 +516,37 @@ class TestProblemFitContext(FitContext):
                                                     splint_order=splint_order)
             
 
+def generate_pvec(fc):
+    """Generate initial parameter vectors for the FitContext `fc`."""
+
+    diffs = fc.diffmat 
+    nmat = np.diag(np.ones(diffs.shape[0]) * NUG)
+
+    # TODO: Implement more principled initialization for warping
+    # function parameters.
+    
+    lp = fc.lp_prior.rvs()
+    llam = fc.llam_prior.rvs()
+    rv = fc.rv_prior.rvs()
+    ebv = fc.ebv_prior.rvs()
+        
+    l = np.asarray([lp, llam])
+    sigma = diffs / l
+    sigma = ETA_SQ * np.exp(-np.sum(sigma * sigma, axis=-1))
+    sigma += nmat
+    mu = np.ones(sigma.shape[0])
+
+    # Ensure all initial warping function values are positive.
+    sedw = np.ones_like(mu) * -1
+    while (sedw < 0).any():
+        sedw = stats.multivariate_normal.rvs(mean=mu, cov=sigma)
+        
+    return np.concatenate(([lp, llam, rv, ebv], sedw))
+    
+
 def main(fc, outfile, nburn=NBURN, nsamp=NSAMP,
          nwalkers=NWALKERS, nthreads=NTHREADS, dust_type=DUST_TYPE,
-         fc_fname=FC_FNAME, logfile=LOGFILE):
+         fc_fname=FC_FNAME, logfile=LOGFILE, pvecs=PVECS):
 
     # If a logfile is specified...
     if logfile is not None:
@@ -532,32 +561,9 @@ def main(fc, outfile, nburn=NBURN, nsamp=NSAMP,
                             level=logging.DEBUG)
 
     # Create initial parameter vectors. 
-    pvecs = list()
-
-    diffs = fc.diffmat 
-    nmat = np.diag(np.ones(diffs.shape[0]) * NUG)
-
-    # TODO: Implement more principled initialization for warping
-    # function parameters.
     
-    for i in range(nwalkers):
-        lp = fc.lp_prior.rvs()
-        llam = fc.llam_prior.rvs()
-        rv = fc.rv_prior.rvs()
-        ebv = fc.ebv_prior.rvs()
-        
-        l = np.asarray([lp, llam])
-        sigma = diffs / l
-        sigma = ETA_SQ * np.exp(-np.sum(sigma * sigma, axis=-1))
-        sigma += nmat
-        mu = np.ones(sigma.shape[0])
-
-        # Ensure all initial warping function values are positive.
-        sedw = np.ones_like(mu) * -1
-        while (sedw < 0).any():
-            sedw = stats.multivariate_normal.rvs(mean=mu, cov=sigma)
-        
-        pvecs.append(np.concatenate(([lp, llam, rv, ebv], sedw)))
+    if pvecs is None:
+        pvecs = [generate_pvec(fc) for i in range(nwalkers)]
     
     # Set up the sampler. 
     sampler = emcee.EnsembleSampler(nwalkers, fc.D, fc, threads=nthreads)
