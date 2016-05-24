@@ -772,9 +772,9 @@ def restart(checkpoint_filename, iteration=None, stage=None,
         logging.info('performing sampling')
         # Sample and record the output. 
         for j, result in enumerate(sgen):
-            record(result, samp, fc, sampler, i + j)
+            record(result, samp, fc, sampler, i + j + 1)
             logging.info('sampling iteration %d, med lnprob: %f',
-                         i + j, np.median(result[1]))
+                         i + j + 1, np.median(result[1]))
             logging.info('median acceptance fraction = %f' % \
                          np.median(sampler.acceptance_fraction))
         logging.info('sampling complete')
