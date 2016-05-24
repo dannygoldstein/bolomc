@@ -7,3 +7,5 @@ output
 run
 plots
 *.pdf
+*h5*
+*.pkl

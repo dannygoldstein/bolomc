@@ -11,7 +11,6 @@ csp = sncosmo.get_magsystem('csp')
 hsiao = sncosmo.get_source('hsiao', version='3.0')
 gain = 50000.
 
-
 class Problem(object):
 
     def __init__(self, sedw, rv, ebv, lp, llam, # "True parameter values."
@@ -83,4 +82,8 @@ class Problem(object):
         lcs = sncosmo.realize_lcs(obs, model, params)
         lc = sncosmo.photdata.normalize_data(lcs[0])
         lc['fluxerr'] = 0.01 * lc['flux'].max()
+        lc = Table(lc) 
+        lc.rename_column('time','mjd')
+        lc.rename_column('band','filter')
+        lc.meta['zcmb'] = self.z
         return lc

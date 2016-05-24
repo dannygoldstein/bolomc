@@ -4,11 +4,12 @@ __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Predictive model for SN Ia bolometric light curves ' \
               'given CSP photometry and host reddening estimates.'
 
-__all__ = ['FitContext', 'main', 'restart', 
-           'reconstruct_fitcontext_from_h5']
+__all__ = ['TestProblemFitContext', 'CSPFitContext', 
+           'main', 'main_csp', 'restart']
 
 import os
 import sys
+import abc
 import glob
 import sncosmo
 import numpy as np
@@ -29,6 +30,7 @@ import emcee
 
 import logging
 import argparse
+import pickle
 
 ######################################################
 # CONSTANTS ##########################################
@@ -41,6 +43,8 @@ ETA_SQ = 0.1
 NUG = 1e-7 
 magsys = sncosmo.get_magsystem('csp')
 nmersenne = 624 # size of MT state vector
+# Set the format of the log file. 
+lformat = '[%(asctime)s]: %(message)s'
 
 ######################################################
 # DEFAULTS ###########################################
@@ -56,6 +60,7 @@ EXCLUDE_BANDS = [] # Fit all bandpasses given.
 DUST_TYPE = 'OD94' # Host galaxy dust reddening law.
 RV_BINTYPE = 'gmm' # Host galaxy Rv prior type. 
 SPLINT_ORDER = 3 # Spline interpolation order.
+FC_FNAME = None
 
 ######################################################
 # HELPERS ############################################
@@ -132,29 +137,6 @@ def initialize_hdf5_group(group, fc, nsamp, nwalkers):
 
     return group
 
-def reconstruct_fitcontext_from_h5(f):
-    
-    nph = f['nph'][()]
-    nl = f['nl'][()]
-    if nl == -1:
-        nl = None
-    lc_filename = f['lc_filename'][()]
-    exclude_bands = f['exclude_bands'][()]
-    dust_type = f['dust_type'][()]
-    rv_bintype = f['rv_bintype'][()]
-    splint_order = f['splint_order'][()]
-    t0 = f['t0'][()]
-    amplitude = f['amplitude'][()]
-
-    # Create the likelihood.
-    fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
-                    exclude_bands=exclude_bands, dust_type=dust_type,
-                    rv_bintype=rv_bintype, splint_order=splint_order)
-    fc.t0 = t0
-    fc.amplitude = amplitude
-
-    return fc
-
 def dust(s):
     """Convert the string representation of `s` of an sncosmo dust class
     to its class."""
@@ -186,16 +168,14 @@ class FitContext(object):
         self.nph = nph
         self.nl = nl
         self.passed_nl = nl
+        self.lc_filename = lc_filename
 
-        # Read in the data to be fit. 
-        self.lc = sncosmo.read_lc(lc_filename, format='csp')
+        # self.lc is now an accessible attribute
+
         self.lc['wave_eff'] = map(filter_to_wave_eff, self.lc['filter'])
         self.lc.sort(['mjd', 'wave_eff'])
-        self.mwebv, _ = get_mwebv(self.lc.meta['name'])
 
         self.rv_bintype = rv_bintype
-        
-        self.host_ebv, self.host_ebv_err = get_hostebv(self.lc.meta['name'])
 
         self.bands = [sncosmo.get_bandpass(band) for
                       band in np.unique(self.lc['filter']) if
@@ -206,21 +186,6 @@ class FitContext(object):
 
         self.hsiao = sncosmo.get_source('hsiao', version='3.0')
         
-        # Set up priors.
-        
-        self.ebv_prior = TruncNorm(0., np.inf, self.host_ebv, 
-                                   self.host_ebv_err)
-
-        self.rv_prior  = get_hostrv_prior(self.lc.meta['name'],
-                                          self.rv_bintype,
-                                          self.dust_type)
-
-        # Hyperparameter priors (shapes from sklearn REML
-        # optimization).
-        
-        self.lp_prior = TruncNorm(0, np.inf, 3.5, 0.3)
-        self.llam_prior = TruncNorm(0, np.inf, 600., 15.)
-
         # set up coarse grid
         self.xstar_p = np.linspace(self.hsiao._phase[0], 
                                    self.hsiao._phase[-1], 
@@ -267,6 +232,7 @@ class FitContext(object):
                                                guess_mod,
                                                ['amplitude', 
                                                 't0'])
+            t0 = res['parameters'][1]
 
         else:
             guess_mod.set(t0=t0)
@@ -444,21 +410,131 @@ class FitContext(object):
     @property
     def D(self):
         return 4 + self.nph * self.nl
-                         
-def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL, 
-         nwalkers=NWALKERS, nthreads=NTHREADS, exclude_bands=EXCLUDE_BANDS,
-         dust_type=DUST_TYPE, rv_bintype=RV_BINTYPE, 
-         splint_order=SPLINT_ORDER):
+
+class CSPFitContext(FitContext):
+
+    @property
+    def mwebv(self):
+        try:
+            return self._mwebv
+        except AttributeError:
+            self._mwebv, _ = get_mwebv(self.lc.meta['name'])
+            return self._mwebv
+
+    @property
+    def ebv_prior(self):
+        try:
+            return self._ebv_prior
+        except AttributeError:
+            self.host_ebv, self.host_ebv_err = get_hostebv(self.lc.meta['name'])
+            self._ebv_prior = TruncNorm(0., np.inf, 
+                                        self.host_ebv,
+                                        self.host_ebv_err)
+            return self._ebv_prior
+            
+    @property
+    def rv_prior(self):
+        try:
+            return self._rv_prior
+        except AttributeError:
+            self._rv_prior = get_hostrv_prior(self.lc.meta['name'],
+                                              self.rv_bintype,
+                                              self.dust_type)
+            return self._rv_prior
+
+    @property
+    def llam_prior(self):
+        try:
+            return self._llam_prior
+        except AttributeError:
+            self._llam_prior = TruncNorm(0, np.inf, 600., 15.)
+            return self._llam_prior
+            
+    @property
+    def lp_prior(self):
+        try:
+            return self._lp_prior
+        except AttributeError:
+            self._lp_prior = TruncNorm(0, np.inf, 3.5, 0.3)
+            return self._lp_prior
+
+    @property
+    def lc(self):
+        try:
+            return self._lc
+        except AttributeError:
+            self._lc = sncosmo.read_lc(lc_filename, format='csp')
+            return self._lc
+            
+class TestProblemFitContext(FitContext):
     
-    # Fit a single light curve with the model.
-    fc = FitContext(lc_filename=lc_filename, nph=nph, nl=nl,
-                    exclude_bands=exclude_bands, dust_type=dust_type,
-                    rv_bintype=rv_bintype, splint_order=splint_order)
+    @property
+    def mwebv(self):
+        return self._mwebv
+    
+    @property
+    def ebv_prior(self):
+        return self._ebv_prior
+    
+    @property
+    def rv_prior(self):
+        return self._rv_prior
+        
+    @property
+    def llam_prior(self):
+        return self._llam_prior
+        
+    @property
+    def lp_prior(self):
+        return self._lp_prior
+        
+    @property
+    def lc(self):
+        try:
+            return self._lc
+        except AttributeError:
+            self._lc = pickle.load(open(self.lc_filename,'rb'))
+            return self._lc
+        
+
+    def __init__(self, lc_filename, nph, mwebv, ebv_prior, 
+                 rv_prior, llam_prior, lp_prior, nl=NL, dust_type=DUST_TYPE,
+                 exclude_bands=EXCLUDE_BANDS, rv_bintype=RV_BINTYPE,
+                 splint_order=SPLINT_ORDER):
+        
+        self._mwebv = mwebv
+        self._ebv_prior = ebv_prior
+        self._rv_prior = rv_prior
+        self._llam_prior = llam_prior
+        self._lp_prior = lp_prior
+
+        super(TestProblemFitContext, self).__init__(lc_filename, nph, nl=nl,
+                                                    dust_type=dust_type,
+                                                    exclude_bands=exclude_bands,
+                                                    rv_bintype=rv_bintype,
+                                                    splint_order=splint_order)
+            
+
+def main(fc, outfile, nburn=NBURN, nsamp=NSAMP,
+         nwalkers=NWALKERS, nthreads=NTHREADS, dust_type=DUST_TYPE,
+         fc_fname=FC_FNAME, logfile=LOGFILE):
+
+    # If a logfile is specified...
+    if logfile is not None:
+        # ...log to it.
+        logging.basicConfig(format=lformat,
+                            filename=logfile, 
+                            filemode='w',
+                            level=logging.DEBUG)
+    else:
+        # ...else log to stdout. 
+        logging.basicConfig(format=lformat,
+                            level=logging.DEBUG)
 
     # Create initial parameter vectors. 
     pvecs = list()
 
-    diffs = fc.xstar[:, None] - fc.xstar[None, :]
+    diffs = fc.diffmat 
     nmat = np.diag(np.ones(diffs.shape[0]) * NUG)
 
     # TODO: Implement more principled initialization for warping
@@ -496,22 +572,17 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
         out.create_dataset('init_params', data=pvecs)
         out.create_dataset('current_stage', (), dtype=int)
         
-        # These are constant for the duartion of the MCMC. 
+        
+        # Pickle the FitContext first. 
+        if fc_fname is not None:
+            pickle.dump(fc, open(fc_fname, 'wb'))
+            out['fc_fname'] = fc_fname
+        
+        # These read emcee configuration settings. 
 
-        out['nph'] = fc.nph
-        if fc.passed_nl is not None:
-            out['nl'] = fc.passed_nl
-        else:
-            out['nl'] = -1 
         out['nwalkers'] = nwalkers
         out['nthreads'] = nthreads
-        out['dust_type'] = dust_type
-        out['splint_order'] = splint_order
-        out['lc_filename'] = lc_filename.name
-        out['exclude_bands'] = exclude_bands
-        out['rv_bintype'] = rv_bintype
-        out['t0'] = fc.t0
-        out['amplitude'] = fc.amplitude
+
                 
         burn = out.create_group('burn')
         samp = out.create_group('samples')
@@ -560,10 +631,45 @@ def main(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
                          np.median(sampler.acceptance_fraction))
         logging.info('sampling complete')
 
-def restart(checkpoint_filename, iteration=None, stage=None):
+             
+def main_csp(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL, 
+             nwalkers=NWALKERS, nthreads=NTHREADS, exclude_bands=EXCLUDE_BANDS,
+             dust_type=DUST_TYPE, rv_bintype=RV_BINTYPE, 
+             splint_order=SPLINT_ORDER, fc_fname=FC_FNAME, 
+             logfile=LOGFILE):
+    
+    # Fit a single light curve with the model.
+    fc = CSPFitContext(lc_filename=lc_filename, nph=nph, nl=nl,
+                       exclude_bands=exclude_bands, dust_type=dust_type,
+                       rv_bintype=rv_bintype, splint_order=splint_order)
+    
+    main(fc, outfile, nburn=nburn, nsamp=nsamp, nwalkers=nwalkers,
+         nthreads=nthreads, dust_type=dust_type, fc_name=fc_name,
+         logfile=logfile)
+    
+
+def restart(checkpoint_filename, iteration=None, stage=None, 
+            logfile=LOGFILE):
     """Restart an MCMC run from an unfinished HDF5 file."""
+
+    
+    # If a logfile is specified...
+    if logfile is not None:
+        # ...log to it.
+        logging.basicConfig(format=lformat,
+                            filename=logfile, 
+                            filemode='w',
+                            level=logging.DEBUG)
+    else:
+        # ...else log to stdout. 
+        logging.basicConfig(format=lformat,
+                            level=logging.DEBUG)
     
     f = h5py.File(checkpoint_filename, 'a')
+    fc_fname = f['fc_fname'][()]
+
+    fc = pickle.load(open(fc_fname, 'rb')) 
+
     with f:
         
         # Are we burning or sampling? 
@@ -597,9 +703,6 @@ def restart(checkpoint_filename, iteration=None, stage=None):
         nwalkers = f['nwalkers'][()]
         nthreads = f['nthreads'][()]
 
-        # Reconstruct the FitContext.
-        fc = reconstruct_fitcontext_from_h5(f)
-        
         # Read the random state.
         rstate = ('MT19937', # See
                              # http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/
@@ -724,6 +827,8 @@ if __name__ == "__main__":
     primary_parser.add_argument('--splint_order', help='Spline interpolation order.',
                         dest='splint_order', type=int,
                         default=SPLINT_ORDER, choices=[1,2,3])
+    primary_parser.add_argument('--fc_fname', help='Pickle the fitcontext to this file.',
+                                type='str', default=FC_FNAME)
     
     # Arguments for the checkpoint restart parser.     
     checkpoint_parser.add_argument('checkpoint_filename', help='The HDF5 file containing the ' \
@@ -739,29 +844,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Set the format of the log file. 
-    lformat = '[%(asctime)s]: %(message)s'
-    
-    # If a logfile is specified...
-    if args.logfile is not None:
-        # ...log to it.
-        logging.basicConfig(format=lformat,
-                            filename=args.logfile, 
-                            filemode='w',
-                            level=logging.DEBUG)
-    else:
-        # ...else log to stdout. 
-        logging.basicConfig(format=lformat,
-                            level=logging.DEBUG)
-
     # Do business.
     if args.subparser_name == 'restart':
         restart(args.checkpoint_filename, iteration=args.iteration,
-                stage=args.stage)
+                stage=args.stage, logfile=args.logfile)
     elif args.subparser_name == 'run':
-        main(lc_filename=args.lc_filename, nph=args.nph, outfile=args.outfile,
+        main_csp(lc_filename=args.lc_filename, nph=args.nph, outfile=args.outfile,
              nburn=args.nburn, nsamp=args.nsamp, nl=args.nl, 
              nwalkers=args.nwalkers, nthreads=args.nthreads,
              exclude_bands=args.exclude_bands, dust_type=args.dust_type,
-             rv_bintype=args.rv_bintype, splint_order=args.splint_order)
-        
+             rv_bintype=args.rv_bintype, splint_order=args.splint_order,
+             fc_fname=args.fc_fname, logfile=args.logfile)
