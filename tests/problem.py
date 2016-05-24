@@ -28,8 +28,8 @@ class Problem(object):
         except AttributeError:
             wflux = sedw * flux
         else:
-            wsurf = np.asarray([[sedw(pp, ll) for ll in l] for pp in p])
-            wflux = wsurf * flux 
+            self.wsurf = np.asarray([[sedw(pp, ll) for ll in l] for pp in p])
+            wflux = self.wsurf * flux 
         self.source = sncosmo.TimeSeriesSource(p, l, wflux)
         
         self.rv = rv
