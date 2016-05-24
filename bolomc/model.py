@@ -106,10 +106,10 @@ def rename_output_file(name):
         rename_output_file(newname)
     os.rename(name, newname)
 
-def create_output_file(fname):
-    if os.path.exists(fname):
+def create_output_file(fname, clobber=False):
+    if os.path.exists(fname) and not clobber:
         rename_output_file(fname)
-    f = h5py.File(fname)
+    f = h5py.File(fname, 'w')        
     return f
 
 def initialize_hdf5_group(group, fc, nsamp, nwalkers):
