@@ -349,7 +349,9 @@ class FitContext(object):
         lp__ = 0
         model = self._create_model(params)
         flux = model.bandflux(self.lc['filter'],
-                              self.lc['mjd'])
+                              self.lc['mjd'],
+                              zp=self.lc['zp'],
+                              zpsys=self.lc['zpsys'])
 
         # model / data likelihood calculation 
         sqerr = stats.norm.logpdf(flux, 
