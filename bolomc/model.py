@@ -27,6 +27,7 @@ from vec import ParamVec
 
 import h5py
 import emcee
+import george
 
 import logging
 import argparse
@@ -158,7 +159,7 @@ class FitContext(object):
 
     """
     
-    def __init__(self, lc_filename, nph, nl=NL, dust_type=DUST_TYPE,
+    def __init__(self, lc_filename, nph, lp, llam, nl=NL, dust_type=DUST_TYPE,
                  exclude_bands=EXCLUDE_BANDS, rv_bintype=RV_BINTYPE,
                  splint_order=SPLINT_ORDER):
 
@@ -170,6 +171,8 @@ class FitContext(object):
         self.nl = nl
         self.passed_nl = nl
         self.lc_filename = lc_filename
+        self.lp = lp
+        self.llam = llam
 
         # self.lc is now an accessible attribute
 
@@ -254,8 +257,15 @@ class FitContext(object):
 
         # This is defined here and used repeatedly in the logprior
         # calculation.
-    
-        self.diffmat = self.xstar[:, None] - self.xstar[None, :]
+
+        self.x_hsiao = np.asarray(list(product(self.hsiao._phase, 
+                                               self.hsiao._wave)))
+
+        self.kernel = ETA_SQ * george.kernels.ExpSquaredKernel([self.lp, 
+                                                                self.llam], 
+                                                               ndim=2)
+        self.gp = george.GP(self.kernel, mean=1)
+        self.gp.compute(self.xstar, yerr=NUG)
 
     @property
     def t0(self):
@@ -276,14 +286,15 @@ class FitContext(object):
 
         """
 
-        spl = RectBivariateSpline(self.xstar_p, 
+        spl = RectBivariateSpline(self.xstar_p,
                                   self.xstar_l,
-                                  warp_f, 
+                                  warp_f,
                                   kx=self.splint_order,
                                   ky=self.splint_order)
         
         return spl(self.hsiao._phase,
                    self.hsiao._wave)
+
 
     def _create_model(self, params):
         """If source is None, use Hsiao."""
@@ -329,18 +340,8 @@ class FitContext(object):
         # Gaussian process prior.
         # Reshape parameters somewhat. 
         sedw = params.sedw.ravel()
-        l = np.asarray([params.lp, params.llam])
+        lp__ += self.gp.lnlikelihood(sedw)
 
-        # Compute the covariance matrix. 
-        sigma = self.diffmat / l
-        sigma =  np.exp(-np.sum(sigma * sigma, axis=-1))
-        sigma *= ETA_SQ # eta-sq is fixed now, but it may float in
-                        # future versions.
-        sigma += np.eye(sedw.size) * NUG # nug is fixed now, but it
-                                         # may float in future
-                                         # versions.
-        mu = np.ones(sedw.size) # mean vector is 1 (no warping). 
-        lp__ += stats.multivariate_normal.logpdf(sedw, mean=mu, cov=sigma)
         return lp__
 
     def loglike(self, params):
@@ -412,7 +413,7 @@ class FitContext(object):
 
     @property
     def D(self):
-        return 4 + self.nph * self.nl
+        return 2 + self.nph * self.nl
 
 class CSPFitContext(FitContext):
 
@@ -446,22 +447,6 @@ class CSPFitContext(FitContext):
             return self._rv_prior
 
     @property
-    def llam_prior(self):
-        try:
-            return self._llam_prior
-        except AttributeError:
-            self._llam_prior = TruncNorm(0, np.inf, 600., 15.)
-            return self._llam_prior
-            
-    @property
-    def lp_prior(self):
-        try:
-            return self._lp_prior
-        except AttributeError:
-            self._lp_prior = TruncNorm(0, np.inf, 3.5, 0.3)
-            return self._lp_prior
-
-    @property
     def lc(self):
         try:
             return self._lc
@@ -482,15 +467,7 @@ class TestProblemFitContext(FitContext):
     @property
     def rv_prior(self):
         return self._rv_prior
-        
-    @property
-    def llam_prior(self):
-        return self._llam_prior
-        
-    @property
-    def lp_prior(self):
-        return self._lp_prior
-        
+                
     @property
     def lc(self):
         try:
@@ -500,18 +477,17 @@ class TestProblemFitContext(FitContext):
             return self._lc
         
 
-    def __init__(self, lc_filename, nph, mwebv, ebv_prior, 
-                 rv_prior, llam_prior, lp_prior, nl=NL, dust_type=DUST_TYPE,
+    def __init__(self, lc_filename, nph, lp, llam, mwebv, ebv_prior, 
+                 rv_prior, nl=NL, dust_type=DUST_TYPE,
                  exclude_bands=EXCLUDE_BANDS, rv_bintype=RV_BINTYPE,
                  splint_order=SPLINT_ORDER):
         
         self._mwebv = mwebv
         self._ebv_prior = ebv_prior
         self._rv_prior = rv_prior
-        self._llam_prior = llam_prior
-        self._lp_prior = lp_prior
 
-        super(TestProblemFitContext, self).__init__(lc_filename, nph, nl=nl,
+        super(TestProblemFitContext, self).__init__(lc_filename, nph, lp, llam, 
+                                                    nl=nl,
                                                     dust_type=dust_type,
                                                     exclude_bands=exclude_bands,
                                                     rv_bintype=rv_bintype,
@@ -521,29 +497,19 @@ class TestProblemFitContext(FitContext):
 def generate_pvec(fc):
     """Generate initial parameter vectors for the FitContext `fc`."""
 
-    diffs = fc.diffmat 
-    nmat = np.diag(np.ones(diffs.shape[0]) * NUG)
 
     # TODO: Implement more principled initialization for warping
     # function parameters.
     
-    lp = fc.lp_prior.rvs()
-    llam = fc.llam_prior.rvs()
     rv = fc.rv_prior.rvs()
     ebv = fc.ebv_prior.rvs()
         
-    l = np.asarray([lp, llam])
-    sigma = diffs / l
-    sigma = ETA_SQ * np.exp(-np.sum(sigma * sigma, axis=-1))
-    sigma += nmat
-    mu = np.ones(sigma.shape[0])
-
     # Ensure all initial warping function values are positive.
-    sedw = np.ones_like(mu) * -1
+    sedw = np.ones(fc.xstar.shape[0]) * -1
     while (sedw < 0).any():
-        sedw = stats.multivariate_normal.rvs(mean=mu, cov=sigma)
+        sedw = fc.gp.sample()
         
-    return np.concatenate(([lp, llam, rv, ebv], sedw))
+    return np.concatenate(([rv, ebv], sedw))
     
 
 def main(fc, outfile, nburn=NBURN, nsamp=NSAMP,
