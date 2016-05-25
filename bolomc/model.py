@@ -22,6 +22,8 @@ from astropy import units as u
 
 from burns import *
 from errors import *
+from util import *
+from grid import optimal_wavelength_grid
 from distributions import TruncNorm, stats
 from vec import ParamVec
 
@@ -39,7 +41,7 @@ import pickle
 h = 6.62606885e-27 # erg s
 c = 2.99792458e10  # cm / s
 AA_TO_CM = 1e-8 # dimensionless
-ETA_SQ = 0.1
+ETA_SQ = 0.25
 NUG = 1e-7 
 magsys = sncosmo.get_magsystem('csp')
 nmersenne = 624 # size of MT state vector
@@ -67,9 +69,6 @@ PVECS = None
 # HELPERS ############################################
 ######################################################
 
-def filter_to_wave_eff(filt):
-    filt = sncosmo.get_bandpass(filt)
-    return filt.wave_eff
     
 def record(result, group, fc, sampler, i):
     pos, lnprob, rstate = result
@@ -186,6 +185,7 @@ class FitContext(object):
         # loaded every time _create_model is called.
 
         self.hsiao = sncosmo.get_source('hsiao', version='3.0')
+        self.hsiao._wave_log = np.log10(self.hsiao._wave)
         
         # set up coarse grid
         self.xstar_p = np.linspace(self.hsiao._phase[0], 
@@ -196,18 +196,27 @@ class FitContext(object):
         if self.nl is None:
             #...make the wavelength grid the effective wavelengths of
             #the filters.
-            self.xstar_l = np.array(sorted(map(filter_to_wave_eff, self.bands)))
+            self.xstar_l = optimal_wavelength_grid(self.lc)
             self.nl = self.xstar_l.size
         else:
             #...else lay down a regular grid with `nl` points over the
             #Hsiao domain.
-            self.xstar_l = np.linspace(self.hsiao._wave[0],
-                                       self.hsiao._wave[-1],
+            self.xstar_l = np.logspace(np.log10(self.hsiao._wave[0]),
+                                       np.log10(self.hsiao._wave[-1]),
                                        self.nl)
+            
+        self.xstar_l_log = np.log10(self.xstar_l)
         
         # Weave the full grid [a list of (phase, wavelength) points]. 
         self.xstar = np.asarray(list(product(self.xstar_p, 
                                              self.xstar_l)))
+
+        # Create a grid where the wavelength is in log space. 
+        self.xstar_log = self.xstar.copy()
+        self.xstar_log[:, 1] = np.log10(self.xstar_log[:, 1])
+
+        # Keep track of the spectral bin width. 
+        self.hsiao_binw = np.gradient(self.hsiao._wave)
 
         # Get an initial guess for amplitude and t0.
         guess_mod = sncosmo.Model(source=self.hsiao,
@@ -247,15 +256,12 @@ class FitContext(object):
         self.amplitude = res['parameters'][2]
         self.t0 = t0
 
-        # Fit the model. 
-
-        self.hsiao_binw = np.gradient(self.hsiao._wave)
-
-
-        # This is defined here and used repeatedly in the logprior
-        # calculation.
+        # Skeletons for the covariance matrices (in log space and
+        # linear space) are defined here and used repeatedly in the
+        # logprior calculation.
     
         self.diffmat = self.xstar[:, None] - self.xstar[None, :]
+        self.diffmat_log = self.xstar_log[:, None] - self.xstar_log[None, :]
 
     @property
     def t0(self):
@@ -276,14 +282,14 @@ class FitContext(object):
 
         """
 
-        spl = RectBivariateSpline(self.xstar_p, 
-                                  self.xstar_l,
-                                  warp_f, 
+        spl = RectBivariateSpline(self.xstar_p, # phase
+                                  self.xstar_l_log, # log wavelength
+                                  warp_f,
                                   kx=self.splint_order,
                                   ky=self.splint_order)
         
         return spl(self.hsiao._phase,
-                   self.hsiao._wave)
+                   self.hsiao._wave_log)
 
     def _create_model(self, params):
         """If source is None, use Hsiao."""
@@ -332,7 +338,7 @@ class FitContext(object):
         l = np.asarray([params.lp, params.llam])
 
         # Compute the covariance matrix. 
-        sigma = self.diffmat / l
+        sigma = self.diffmat_log / l
         sigma =  np.exp(-np.sum(sigma * sigma, axis=-1))
         sigma *= ETA_SQ # eta-sq is fixed now, but it may float in
                         # future versions.
@@ -447,10 +453,11 @@ class CSPFitContext(FitContext):
 
     @property
     def llam_prior(self):
+        # This is in log space now.
         try:
             return self._llam_prior
         except AttributeError:
-            self._llam_prior = TruncNorm(0, np.inf, 600., 15.)
+            self._llam_prior = TruncNorm(-np.inf, np.inf, 0.1, 0.03)
             return self._llam_prior
             
     @property
@@ -508,7 +515,7 @@ class TestProblemFitContext(FitContext):
         self._mwebv = mwebv
         self._ebv_prior = ebv_prior
         self._rv_prior = rv_prior
-        self._llam_prior = llam_prior
+        self._llam_prior = llam_prior # Now in log space. 
         self._lp_prior = lp_prior
 
         super(TestProblemFitContext, self).__init__(lc_filename, nph, nl=nl,
@@ -516,12 +523,11 @@ class TestProblemFitContext(FitContext):
                                                     exclude_bands=exclude_bands,
                                                     rv_bintype=rv_bintype,
                                                     splint_order=splint_order)
-            
 
 def generate_pvec(fc):
     """Generate initial parameter vectors for the FitContext `fc`."""
 
-    diffs = fc.diffmat 
+    diffs = fc.diffmat_log
     nmat = np.diag(np.ones(diffs.shape[0]) * NUG)
 
     # TODO: Implement more principled initialization for warping
@@ -546,9 +552,9 @@ def generate_pvec(fc):
     return np.concatenate(([lp, llam, rv, ebv], sedw))
     
 
-def main(fc, outfile, nburn=NBURN, nsamp=NSAMP,
-         nwalkers=NWALKERS, nthreads=NTHREADS, dust_type=DUST_TYPE,
-         fc_fname=FC_FNAME, logfile=LOGFILE, pvecs=PVECS):
+def main(fc, outfile, nburn=NBURN, nsamp=NSAMP, nwalkers=NWALKERS, 
+         nthreads=NTHREADS, dust_type=DUST_TYPE, fc_fname=FC_FNAME, 
+         logfile=LOGFILE, pvecs=PVECS):
 
     # If a logfile is specified...
     if logfile is not None:
