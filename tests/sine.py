@@ -37,7 +37,7 @@ rv_prior = TruncNorm(0, np.inf, rv, 1.)
 ebv_prior = TruncNorm(0, np.inf, ebv, 0.02)
 
 fc = bolomc.TestProblemFitContext(lc_filename=fname, 
-                                  nph=20, 
+                                  nph=25,
                                   mwebv=mwebv,
                                   llam_prior=llam_prior,
                                   lp_prior=lp_prior,
