@@ -13,8 +13,10 @@ import abc
 import glob
 import sncosmo
 import numpy as np
+import numexpr as ne
 
 from itertools import product
+from scipy.linalg import cho_solve
 from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy.optimize import minimize
 from astropy.cosmology import Planck13
@@ -29,10 +31,13 @@ from vec import ParamVec
 
 import h5py
 import emcee
+import mkl 
 
 import logging
 import argparse
 import pickle
+
+ne.set_num_threads(8) # Set by experiment. 
 
 ######################################################
 # CONSTANTS ##########################################
@@ -262,6 +267,8 @@ class FitContext(object):
     
         self.diffmat = self.xstar[:, None] - self.xstar[None, :]
         self.diffmat_log = self.xstar_log[:, None] - self.xstar_log[None, :]
+        self.eye = np.eye(self.nph * self.nl)
+        self.nug = self.eye * NUG
 
     @property
     def t0(self):
@@ -336,17 +343,44 @@ class FitContext(object):
         # Reshape parameters somewhat. 
         sedw = params.sedw.ravel()
         l = np.asarray([params.lp, params.llam])
+        dev = (sedw - 1)[:, None]
 
-        # Compute the covariance matrix. 
-        sigma = self.diffmat_log / l
-        sigma =  np.exp(-np.sum(sigma * sigma, axis=-1))
-        sigma *= ETA_SQ # eta-sq is fixed now, but it may float in
-                        # future versions.
-        sigma += np.eye(sedw.size) * NUG # nug is fixed now, but it
-                                         # may float in future
-                                         # versions.
-        mu = np.ones(sedw.size) # mean vector is 1 (no warping). 
-        lp__ += stats.multivariate_normal.logpdf(sedw, mean=mu, cov=sigma)
+        # Build the covariance matrix. 
+        # Begin numexpr block.
+
+        sigma = ne.evaluate('self.diffmat_log / l')
+        sigma = ne.evaluate('sigma * sigma')
+        sigma = ne.evaluate('sum(sigma, axis=2)')
+        sigma = ne.evaluate('exp(-sigma)')
+        sigma = ne.evaluate('sigma * ETA_SQ') 
+        sigma = ne.evaluate('sigma + self.nug')
+        
+        # End numexpr block.
+
+        # Compute the log-likelihood. 
+        # Begin threaded MKL block.
+        mkl.set_num_threads(8) # Set by experiment. 
+
+        # Factor the covariance matrix using the Cholesky
+        # decomposition.
+        factor = np.linalg.cholesky(sigma) 
+
+        # Invert the covariance matrix using the Cholesky factor.
+        inv = cho_solve((factor, True), self.eye, check_finite=False)
+
+        # Compute the (positive) argument of the exponential. 
+        chsq = dev.T.dot(inv).dot(dev)
+        
+        # Compute the determinant using the Cholesky factor. 
+        det = np.product(np.diag(factor))**2 
+
+        mkl.set_num_threads(1)
+        # End threaded MKL block. 
+
+        # Add GP terms to logprobability accumulator. 
+        lp__ += chsq * -0.5 
+        lp__ += np.log(det) * -0.5
+
         return lp__
 
     def loglike(self, params):
