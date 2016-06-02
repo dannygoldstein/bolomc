@@ -37,8 +37,6 @@ import logging
 import argparse
 import pickle
 
-ne.set_num_threads(8) # Set by experiment. 
-
 ######################################################
 # CONSTANTS ##########################################
 ######################################################
@@ -343,20 +341,21 @@ class FitContext(object):
         # Reshape parameters somewhat. 
         sedw = params.sedw.ravel()
         l = np.asarray([params.lp, params.llam])
-        dev = (sedw - 1)[:, None]
+        dev = (sedw - 1) # mean function of 1
+        nug = self.nug
+        sigma = self.diffmat_log
 
         # Build the covariance matrix. 
         # Begin numexpr block.
 
-        nug = self.nug
-        sigma = self.diffmat_log
+        ne.set_num_threads(8) # Set by experiment. 
         sigma = ne.evaluate('sigma / l')
         sigma = ne.evaluate('sigma * sigma')
         sigma = ne.evaluate('sum(sigma, axis=2)')
         sigma = ne.evaluate('exp(-sigma)')
         sigma = ne.evaluate('sigma * ETA_SQ') 
         sigma = ne.evaluate('sigma + nug')
-        
+        ne.set_num_threads(1)
         # End numexpr block.
 
         # Compute the log-likelihood. 
@@ -371,17 +370,17 @@ class FitContext(object):
         inv = cho_solve((factor, True), self.eye, check_finite=False)
 
         # Compute the (positive) argument of the exponential. 
-        chsq = dev.T.dot(inv).dot(dev)
+        chsq = dev.dot(inv).dot(dev)
         
-        # Compute the determinant using the Cholesky factor. 
-        det = np.product(np.diag(factor))**2 
+        # Compute the determinant using the Cholesky factor.
+        det_factor = -np.log(np.diag(factor)).sum()  
 
         mkl.set_num_threads(1)
         # End threaded MKL block. 
 
         # Add GP terms to logprobability accumulator. 
         lp__ += chsq * -0.5 
-        lp__ += np.log(det) * -0.5
+        lp__ += det_factor
 
         return lp__
 
