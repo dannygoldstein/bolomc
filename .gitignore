@@ -8,5 +8,6 @@ run
 plots
 *.pdf
 *h5*
-*.pkl
-*.log
+*pkl*
+*log*
+*prof*
