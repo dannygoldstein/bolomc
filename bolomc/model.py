@@ -418,7 +418,7 @@ class FitContext(object):
 
     @property
     def D(self):
-        return 4 + self.nph * self.nl
+        return 2 + self.nph * self.nl
 
 class CSPFitContext(FitContext):
 
