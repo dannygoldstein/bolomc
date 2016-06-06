@@ -6,6 +6,9 @@ import numpy as np
 from errors import BoundsError
 
 class ParamVec(object):
+
+    SEDW_LOWER = 0.
+    SEDW_UPPER = 4.
         
     def __init__(self, vec, nph, nl, check_bounds=True):
         self.vec = vec
@@ -22,7 +25,8 @@ class ParamVec(object):
         if self.rv <= 0:
             raise BoundsError(ermsg % ('rv', 0, np.inf, self.rv))
         if (self.sedw < 0).any():
-            raise BoundsError(inclermsg % ('sedw', 0, 4., self.sedw))
+            raise BoundsError(inclermsg % ('sedw', SEDW_LOWER, 
+                                           SEDW_UPPER, self.sedw))
                         
     @property
     def rv(self):

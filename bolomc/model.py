@@ -15,7 +15,7 @@ import sncosmo
 import numpy as np
 
 from itertools import product
-from scipy.interpolate import RectBivariateSpline, interp1d
+from scipy.interpolate import NearestNDInterpolator, interp1d
 from scipy.optimize import minimize
 from astropy.cosmology import Planck13
 from astropy import units as u
@@ -38,13 +38,9 @@ import pickle
 # CONSTANTS ##########################################
 ######################################################
 
-h = 6.62606885e-27 # erg s
-c = 2.99792458e10  # cm / s
-AA_TO_CM = 1e-8 # dimensionless
-ETA_SQ = 0.25
-NUG = 1e-7 
 magsys = sncosmo.get_magsystem('csp')
 nmersenne = 624 # size of MT state vector
+
 # Set the format of the log file. 
 lformat = '[%(asctime)s]: %(message)s'
 
@@ -217,7 +213,14 @@ class FitContext(object):
 
         # Keep track of the spectral bin width. 
         self.hsiao_binw = np.gradient(self.hsiao._wave)
+        self.x_log = np.asarray(list(product(self.hsiao._phase,
+                                    np.log10(self.hsiao._wave))))
+        
+        # Fit amplitude, t0.
+        self._fit_guess()
 
+
+    def _fit_guess(self):
         # Get an initial guess for amplitude and t0.
         guess_mod = sncosmo.Model(source=self.hsiao,
                                   effects=[self.dust_type(), sncosmo.F99Dust()],
@@ -254,14 +257,7 @@ class FitContext(object):
             raise FitError(res['message'])
 
         self.amplitude = res['parameters'][2]
-        self.t0 = t0
-
-        # Skeletons for the covariance matrices (in log space and
-        # linear space) are defined here and used repeatedly in the
-        # logprior calculation.
-    
-        self.diffmat = self.xstar[:, None] - self.xstar[None, :]
-        self.diffmat_log = self.xstar_log[:, None] - self.xstar_log[None, :]
+        self.t0 = t0        
 
     @property
     def t0(self):
@@ -278,18 +274,13 @@ class FitContext(object):
     
     def _regrid_hsiao(self, warp_f):
         """Take an SED warp matrix defined on a coarse grid and interpolate it
-        to the hsiao grid using a spline.
+        to the hsiao grid using a nearest neighbor scheme.
 
         """
-
-        spl = RectBivariateSpline(self.xstar_p, # phase
-                                  self.xstar_l_log, # log wavelength
-                                  warp_f,
-                                  kx=self.splint_order,
-                                  ky=self.splint_order)
         
-        return spl(self.hsiao._phase,
-                   self.hsiao._wave_log)
+        interpolant = NearestNDInterpolator(self.xstar_log, warp_f)
+        return interpolant(self.x_log).reshape(self.hsiao._phase.size,
+                                               self.hsiao._wave.size)
 
     def _create_model(self, params):
         """If source is None, use Hsiao."""
@@ -326,27 +317,9 @@ class FitContext(object):
 
     def logprior(self, params):
         """Compute logp(params)."""
-
         lp__ = 0
-        
         lp__ += self.ebv_prior(params.ebv)
         lp__ += self.rv_prior(params.rv)
-
-        # Gaussian process prior.
-        # Reshape parameters somewhat. 
-        sedw = params.sedw.ravel()
-        l = np.asarray([params.lp, params.llam])
-
-        # Compute the covariance matrix. 
-        sigma = self.diffmat_log / l
-        sigma =  np.exp(-np.sum(sigma * sigma, axis=-1))
-        sigma *= ETA_SQ # eta-sq is fixed now, but it may float in
-                        # future versions.
-        sigma += np.eye(sedw.size) * NUG # nug is fixed now, but it
-                                         # may float in future
-                                         # versions.
-        mu = np.ones(sedw.size) # mean vector is 1 (no warping). 
-        lp__ += stats.multivariate_normal.logpdf(sedw, mean=mu, cov=sigma)
         return lp__
 
     def loglike(self, params):
@@ -360,9 +333,7 @@ class FitContext(object):
                               zpsys=self.lc['zpsys'])
 
         # model / data likelihood calculation 
-        sqerr = stats.norm.logpdf(flux, 
-                                  loc=self.lc['flux'], 
-                                  scale=self.lc['fluxerr'])
+        sqerr = ((flux - self.lc['flux']) / self.lc['fluxerr'])**2
         lp__ += np.sum(sqerr)
         return lp__
 
@@ -452,23 +423,6 @@ class CSPFitContext(FitContext):
             return self._rv_prior
 
     @property
-    def llam_prior(self):
-        # This is in log space now.
-        try:
-            return self._llam_prior
-        except AttributeError:
-            self._llam_prior = TruncNorm(-np.inf, np.inf, 0.1, 0.03)
-            return self._llam_prior
-            
-    @property
-    def lp_prior(self):
-        try:
-            return self._lp_prior
-        except AttributeError:
-            self._lp_prior = TruncNorm(0, np.inf, 3.5, 0.3)
-            return self._lp_prior
-
-    @property
     def lc(self):
         try:
             return self._lc
@@ -489,15 +443,7 @@ class TestProblemFitContext(FitContext):
     @property
     def rv_prior(self):
         return self._rv_prior
-        
-    @property
-    def llam_prior(self):
-        return self._llam_prior
-        
-    @property
-    def lp_prior(self):
-        return self._lp_prior
-        
+                
     @property
     def lc(self):
         try:
@@ -508,15 +454,13 @@ class TestProblemFitContext(FitContext):
         
 
     def __init__(self, lc_filename, nph, mwebv, ebv_prior, 
-                 rv_prior, llam_prior, lp_prior, nl=NL, dust_type=DUST_TYPE,
+                 rv_prior, nl=NL, dust_type=DUST_TYPE,
                  exclude_bands=EXCLUDE_BANDS, rv_bintype=RV_BINTYPE,
                  splint_order=SPLINT_ORDER):
         
         self._mwebv = mwebv
         self._ebv_prior = ebv_prior
         self._rv_prior = rv_prior
-        self._llam_prior = llam_prior # Now in log space. 
-        self._lp_prior = lp_prior
 
         super(TestProblemFitContext, self).__init__(lc_filename, nph, nl=nl,
                                                     dust_type=dust_type,
@@ -527,29 +471,20 @@ class TestProblemFitContext(FitContext):
 def generate_pvec(fc):
     """Generate initial parameter vectors for the FitContext `fc`."""
 
-    diffs = fc.diffmat_log
-    nmat = np.diag(np.ones(diffs.shape[0]) * NUG)
-
     # TODO: Implement more principled initialization for warping
     # function parameters.
     
-    lp = fc.lp_prior.rvs()
-    llam = fc.llam_prior.rvs()
     rv = fc.rv_prior.rvs()
     ebv = fc.ebv_prior.rvs()
-        
-    l = np.asarray([lp, llam])
-    sigma = diffs / l
-    sigma = ETA_SQ * np.exp(-np.sum(sigma * sigma, axis=-1))
-    sigma += nmat
-    mu = np.ones(sigma.shape[0])
+    
+    # TODO:: Think about a more graceful way to do this. 
+    # This should be incorporated into fc. 
 
-    # Ensure all initial warping function values are positive.
-    sedw = np.ones_like(mu) * -1
-    while (sedw < 0).any():
-        sedw = stats.multivariate_normal.rvs(mean=mu, cov=sigma)
-        
-    return np.concatenate(([lp, llam, rv, ebv], sedw))
+    sedw = np.random.uniform(size=fc.D - 2) 
+    sedw *= (ParamVec.SEDW_UPPER - ParamVec.SEDW_LOWER)
+    sedw += ParamVec.SEDW_LOWER
+    
+    return np.concatenate(([rv, ebv], sedw))
     
 
 def main(fc, outfile, nburn=NBURN, nsamp=NSAMP, nwalkers=NWALKERS, 
