@@ -219,6 +219,11 @@ class FitContext(object):
         # Fit amplitude, t0.
         self._fit_guess()
 
+        # Compute the strides for nearest neighbor interpolation. 
+        
+        self.stride_l = self.hsiao._wave.size / self.nl
+        self.stride_p = self.hsiao._phase.size / self.nph
+
 
     def _fit_guess(self):
         # Get an initial guess for amplitude and t0.
@@ -278,9 +283,16 @@ class FitContext(object):
 
         """
         
-        interpolant = NearestNDInterpolator(self.xstar_log, warp_f.ravel())
-        return interpolant(self.x_log).reshape(self.hsiao._phase.size,
-                                               self.hsiao._wave.size)
+        result = np.empty((self.hsiao._phase.size,
+                           self.hsiao._wave.size))
+
+        for i in range(self.nph):
+            for j in range(self.nl):
+                result[i * self.stride_p : (i + 1) * self.stride_p,
+                       j * self.stride_l : (j + 1) * self.stride_l] *= warp_f[i, j]
+            
+        
+        return result
 
     def _create_model(self, params):
         """If source is None, use Hsiao."""
