@@ -16,7 +16,7 @@ i = cs['last_index_filled'][()]
 
 models = []
 
-for k in range(50):
+for k in range(5):
     params = cs['params'][i, k]
     fc = pickle.load(open('sinefc.pkl2','rb'))
     vec = bolomc.ParamVec(params, fc.nph, fc.nl)
