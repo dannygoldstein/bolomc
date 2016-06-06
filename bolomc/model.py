@@ -278,7 +278,7 @@ class FitContext(object):
 
         """
         
-        interpolant = NearestNDInterpolator(self.xstar_log, warp_f)
+        interpolant = NearestNDInterpolator(self.xstar_log, warp_f.ravel())
         return interpolant(self.x_log).reshape(self.hsiao._phase.size,
                                                self.hsiao._wave.size)
 
