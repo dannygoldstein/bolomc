@@ -15,7 +15,7 @@ import sncosmo
 import numpy as np
 
 from itertools import product
-from scipy.interpolate import NearestNDInterpolator, interp1d
+from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy.optimize import minimize
 from astropy.cosmology import Planck13
 from astropy import units as u
@@ -282,18 +282,15 @@ class FitContext(object):
         to the hsiao grid using a nearest neighbor scheme.
 
         """
-        
-        result = np.empty((self.hsiao._phase.size,
-                           self.hsiao._wave.size))
 
-        for i in range(self.nph):
-            for j in range(self.nl):                    
-                result[i * self.stride_p : ((i + 1) * self.stride_p) if i != self.nph - 1 else None,
-                       j * self.stride_l : ((j + 1) * self.stride_l) if j != self.nl - 1 else None] = warp_f[i, j]
-
-            
+        spl = RectBivariateSpline(self.xstar_p, # phase
+                                  self.xstar_l_log, # log wavelength
+                                  warp_f,
+                                  kx=self.splint_order,
+                                  ky=self.splint_order)
         
-        return result
+        return spl(self.hsiao._phase, 
+                   self.hsiao._wave_log)
 
     def _create_model(self, params):
         """If source is None, use Hsiao."""
