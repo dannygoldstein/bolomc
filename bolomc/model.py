@@ -287,9 +287,10 @@ class FitContext(object):
                            self.hsiao._wave.size))
 
         for i in range(self.nph):
-            for j in range(self.nl):
-                result[i * self.stride_p : (i + 1) * self.stride_p,
-                       j * self.stride_l : (j + 1) * self.stride_l] *= warp_f[i, j]
+            for j in range(self.nl):                    
+                result[i * self.stride_p : ((i + 1) * self.stride_p) if i != self.nph - 1 else None,
+                       j * self.stride_l : ((j + 1) * self.stride_l) if j != self.nl - 1 else None] = warp_f[i, j]
+
             
         
         return result
