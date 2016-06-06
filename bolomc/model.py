@@ -333,7 +333,7 @@ class FitContext(object):
                               zpsys=self.lc['zpsys'])
 
         # model / data likelihood calculation 
-        sqerr = ((flux - self.lc['flux']) / self.lc['fluxerr'])**2
+        sqerr = -((flux - self.lc['flux']) / self.lc['fluxerr'])**2
         lp__ += np.sum(sqerr)
         return lp__
 
