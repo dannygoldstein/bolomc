@@ -13,7 +13,7 @@ gain = 50000.
 
 class Problem(object):
 
-    def __init__(self, sedw, rv, ebv, lp, llam, # "True parameter values."
+    def __init__(self, sedw, rv, ebv, # "True parameter values."
                  z, mwebv, # "True parameter values."
                  dust_type=sncosmo.OD94Dust, 
                  template=hsiao):
@@ -34,8 +34,6 @@ class Problem(object):
         
         self.rv = rv
         self.ebv = ebv
-        self.lp = lp
-        self.llam = llam
         self.z = z
         self.dust_type = dust_type
         self.mwebv = mwebv

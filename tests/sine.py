@@ -30,7 +30,7 @@ def sedw(p, l):
     """The injected warping function."""
     return 1 + 0.3 * np.sin((np.pi * p / lp) + (np.pi * np.log10(l) / llam)) 
 
-test = problem.Problem(sedw, rv, ebv, lp, llam, z, mwebv)
+test = problem.Problem(sedw, rv, ebv, z, mwebv)
 data = test.data(100/8, exclude_bands=['csphd','cspjd','cspyd',
                                        'cspv3014','cspv3009'])
 
@@ -60,7 +60,7 @@ answer = np.asarray([sedw(*x) for x in fc.xstar])
 
 for i in range(nwalkers):
     pvec = np.zeros(fc.D)
-    pvec[:2] = [lp_prior.rvs(), llam_prior.rvs()]
+    pvec[:2] = [rv_prior.rvs(), ebv_prior.rvs()]
     pvec[2:] = answer
     pvec[2:] += np.random.normal(0, 0.001, size=fc.nph * fc.nl)
     pvecs.append(pvec)
