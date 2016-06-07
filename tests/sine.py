@@ -53,7 +53,7 @@ fc = bolomc.TestProblemFitContext(lc_filename=fname,
                                   rv_prior=rv_prior,
                                   splint_order=3)
 
-nwalkers = fc.D * 2
+nwalkers = fc.D * 3
 
 pvecs = []
 answer = np.asarray([sedw(*x) for x in fc.xstar])
