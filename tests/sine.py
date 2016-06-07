@@ -79,7 +79,7 @@ pickle.dump(source2, open("init.pkl",'wb'))
 bolomc.main(fc, 'sine.h52',
             1000, 1000,
             nwalkers=nwalkers,
-            nthreads=1,
+            nthreads=4,
             fc_fname='sinefc.pkl2',
             logfile='sine.log2',
             pvecs=pvecs)
