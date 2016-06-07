@@ -787,7 +787,7 @@ if __name__ == "__main__":
                         dest='splint_order', type=int,
                         default=SPLINT_ORDER, choices=[1,2,3])
     primary_parser.add_argument('--fc_fname', help='Pickle the fitcontext to this file.',
-                                type='str', default=FC_FNAME)
+                                type=str, default=FC_FNAME)
     
     # Arguments for the checkpoint restart parser.     
     checkpoint_parser.add_argument('checkpoint_filename', help='The HDF5 file containing the ' \
