@@ -5,13 +5,15 @@ __whatami__ = 'Plotting tools for bolomc.'
 
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
-import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import seaborn as sns
 import numpy as np
 import h5py
 
 def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
+    
+    import matplotlib.pyplot as plt
+    
     """Produce a heatmap of a spectral warping surface. pgrid is the 1D
     array of phase values, wgrid is the 1d array of wavelength values,
     and warp is the 2D array of warping function values evaluated on
@@ -39,6 +41,9 @@ def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
 
 
 def plot_wslices(pgrid, wgrid, warp):
+
+    import matplotlib.pyplot as plt 
+
     """Plot slices of realized warping functions. pgrid is the 1D
     array of phase values, wgrid is the 1d array of wavelength values,
     and warp is the 2D array of warping function values evaluated on
@@ -105,6 +110,8 @@ def read_chains(h5, full_output=False):
         
 
 def plot_chains(chains, param_names=None, filename=None, boundary=None):
+    
+    import matplotlib.pyplot as plt
 
     """Plot the paths of MCMC chains in parameter space. Chains should
     have shape npar, nwal, nt."""
