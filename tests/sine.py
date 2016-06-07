@@ -61,7 +61,9 @@ answer = np.asarray([sedw(*x) for x in fc.xstar])
 for i in range(nwalkers):
     pvec = np.zeros(fc.D)
     pvec[:2] = [rv_prior.rvs(), ebv_prior.rvs()]
-    pvec[2:] = np.random.uniform(size=fc.D - 2) * 4
+    pvec[2:] = answer
+    pvec[2:] += np.random.randn(fc.D - 2) * 0.001
+    #pvec[2:] = np.random.uniform(size=fc.D - 2) * 4
     pvecs.append(pvec)
 
 pvecs[0][0] = rv
