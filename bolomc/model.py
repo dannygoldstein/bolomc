@@ -603,7 +603,7 @@ def main_csp(lc_filename, nph, outfile, nburn=NBURN, nsamp=NSAMP, nl=NL,
                        rv_bintype=rv_bintype, splint_order=splint_order)
     
     main(fc, outfile, nburn=nburn, nsamp=nsamp, nwalkers=nwalkers,
-         nthreads=nthreads, dust_type=dust_type, fc_name=fc_name,
+         nthreads=nthreads, dust_type=dust_type, fc_fname=fc_fname,
          logfile=logfile)
     
 
