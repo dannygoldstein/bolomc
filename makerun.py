@@ -12,13 +12,14 @@ exe = os.path.join('/'.join(os.path.abspath(__file__).split('/')[:-1]),
 #LOGFILE = None # Use stdout.
 NBURN = 5000 # Number of burn-in iterations.
 NSAMP = 50 # Number of sampling iterations.
+NL = 10
 #NL = None # Number of wavelength knots (regular grid).
 NWALKERS = 300 # Number of walkers in the ensemble.
-NTHREADS = 2 # Number of threads for MCMC sampling. 
+NTHREADS = 4 # Number of threads for MCMC sampling. 
 #EXCLUDE_BANDS = [] # Fit all bandpasses given. 
 #DUST_TYPE = 'OD94' # Host galaxy dust reddening law.
 #RV_BINTYPE = 'gmm' # Host galaxy Rv prior type. 
-SPLINT_ORDER = 1 # Spline interpolation order.
+SPLINT_ORDER = 3 # Spline interpolation order.
 NPH = 10
 
 
@@ -28,7 +29,8 @@ basecmd = """
     {lc_filename:s} \\
     {nph:d} \\
     {outfile:s} \\
-    --logfile {logfile:s}"""
+    --logfile {logfile:s} \\
+    --fc_fname {fc_fname:s}"""
 
 try:
     os.mkdir('run')
@@ -44,10 +46,11 @@ for fn in lcfiles:
     outfile = '%s.h5' % runf_basename
     logfile = '%s.log' % runf_basename
     lc_filename = os.path.abspath(fn)
+    fc_fname = '%s.fc.pkl' % runf_basename
     with open(fname, 'w') as f:
         f.write(basecmd.format(exe=exe, lc_filename=lc_filename, 
                                outfile=outfile, logfile=logfile,
-                               nph=NPH))
+                               nph=NPH, fc_fname=fc_fname))
         try:
             f.write(' \\\n    --nburn {nburn:d}'.format(nburn=NBURN))
         except NameError:
