@@ -12,15 +12,15 @@ exe = os.path.join('/'.join(os.path.abspath(__file__).split('/')[:-1]),
 #LOGFILE = None # Use stdout.
 NBURN = 5000 # Number of burn-in iterations.
 NSAMP = 50 # Number of sampling iterations.
-NL = 10
+NL = 10 * 2 
 #NL = None # Number of wavelength knots (regular grid).
-NWALKERS = 300 # Number of walkers in the ensemble.
+NWALKERS = 1000 # Number of walkers in the ensemble.
 NTHREADS = 4 # Number of threads for MCMC sampling. 
 #EXCLUDE_BANDS = [] # Fit all bandpasses given. 
 #DUST_TYPE = 'OD94' # Host galaxy dust reddening law.
 #RV_BINTYPE = 'gmm' # Host galaxy Rv prior type. 
 SPLINT_ORDER = 3 # Spline interpolation order.
-NPH = 10
+NPH = 10 * 2 
 
 
 basecmd = """
@@ -42,11 +42,11 @@ stringify = lambda l: " ".join(l)
 lcfiles = glob.glob('data/*/*')
 for fn in lcfiles:
     runf_basename = fn.split('/')[-1].split('opt')[0]
-    fname = 'run/%s.run' % runf_basename
-    outfile = '%s.h5' % runf_basename
-    logfile = '%s.log' % runf_basename
+    fname = 'run/%s.run_hires' % runf_basename
+    outfile = '%s.h5_hires' % runf_basename
+    logfile = '%s.log_hires' % runf_basename
     lc_filename = os.path.abspath(fn)
-    fc_fname = '%s.fc.pkl' % runf_basename
+    fc_fname = '%s.fc.pkl_hires' % runf_basename
     with open(fname, 'w') as f:
         f.write(basecmd.format(exe=exe, lc_filename=lc_filename, 
                                outfile=outfile, logfile=logfile,
