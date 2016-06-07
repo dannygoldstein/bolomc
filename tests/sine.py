@@ -61,12 +61,12 @@ answer = np.asarray([sedw(*x) for x in fc.xstar])
 for i in range(nwalkers):
     pvec = np.zeros(fc.D)
     pvec[:2] = [rv_prior.rvs(), ebv_prior.rvs()]
-    pvec[2:] = answer
-    pvec[2:] += np.random.normal(0, 0.001, size=fc.nph * fc.nl)
+    pvec[2:] = np.random.uniform(size=fc.D - 2) * 4
     pvecs.append(pvec)
 
 pvecs[0][0] = rv
 pvecs[0][1] = ebv
+pvecs[0][2:]= answer
 
 # Some auxiliary data structures for animating the warping surface. 
 surf2 = fc._create_model(bolomc.ParamVec(pvecs[0], fc.nph, fc.nl)).source._passed_flux / fc.hsiao._passed_flux
