@@ -438,6 +438,7 @@ class CSPFitContext(FitContext):
             return self._lc
         except AttributeError:
             self._lc = sncosmo.read_lc(self.lc_filename, format='csp')
+            self._lc.rename_column('magsys', 'zpsys')
             return self._lc
             
 class TestProblemFitContext(FitContext):
