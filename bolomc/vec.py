@@ -25,8 +25,8 @@ class ParamVec(object):
         if self.rv <= 0:
             raise BoundsError(ermsg % ('rv', 0, np.inf, self.rv))
         if (self.sedw < 0).any():
-            raise BoundsError(inclermsg % ('sedw', SEDW_LOWER, 
-                                           SEDW_UPPER, self.sedw))
+            raise BoundsError(inclermsg % ('sedw', self.SEDW_LOWER, 
+                                           self.SEDW_UPPER, self.sedw))
                         
     @property
     def rv(self):
