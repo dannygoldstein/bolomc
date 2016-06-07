@@ -3,15 +3,15 @@
 __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Plotting tools for bolomc.'
 
-from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.gridspec import GridSpec
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import seaborn as sns
 import numpy as np
 import h5py
 
 def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
+
+    import seaborn as sns
+    import matplotlib.cm as cm
+    import matplotlib.pyplot as plt
+    
     """Produce a heatmap of a spectral warping surface. pgrid is the 1D
     array of phase values, wgrid is the 1d array of wavelength values,
     and warp is the 2D array of warping function values evaluated on
@@ -22,8 +22,10 @@ def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
     fig, ax = plt.subplots(figsize=(5,10))
     m = cm.get_cmap('viridis')
     
+    pgrid, wgrid = np.meshgrid(pgrid, wgrid)
+    
     # Plot the surface. 
-    res = ax.pcolorfast(wgrid, pgrid, warp.T, 
+    res = ax.pcolormesh(wgrid, pgrid, warp.T,
                         cmap=m, vmin=vmin, 
                         vmax=vmax)
     
@@ -39,6 +41,10 @@ def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
 
 
 def plot_wslices(pgrid, wgrid, warp):
+
+    import seaborn as sns
+    import matplotlib.pyplot as plt 
+
     """Plot slices of realized warping functions. pgrid is the 1D
     array of phase values, wgrid is the 1d array of wavelength values,
     and warp is the 2D array of warping function values evaluated on
@@ -105,6 +111,11 @@ def read_chains(h5, full_output=False):
         
 
 def plot_chains(chains, param_names=None, filename=None, boundary=None):
+    
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from matplotlib.gridspec import GridSpec
+    from matplotlib.backends.backend_pdf import PdfPages
 
     """Plot the paths of MCMC chains in parameter space. Chains should
     have shape npar, nwal, nt."""

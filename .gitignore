@@ -6,4 +6,8 @@ output
 *~
 run
 plots
-backup
+*.pdf
+*h5*
+*pkl*
+*log*
+*prof*
