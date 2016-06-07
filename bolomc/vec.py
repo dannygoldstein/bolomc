@@ -7,8 +7,8 @@ from errors import BoundsError
 
 class ParamVec(object):
 
-    SEDW_LOWER = 0.
-    SEDW_UPPER = 2.
+    SEDW_LOWER = 0.5
+    SEDW_UPPER = 1.5
         
     def __init__(self, vec, nph, nl, check_bounds=True):
         self.vec = vec
