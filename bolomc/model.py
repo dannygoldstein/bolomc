@@ -437,7 +437,7 @@ class CSPFitContext(FitContext):
         try:
             return self._lc
         except AttributeError:
-            self._lc = sncosmo.read_lc(lc_filename, format='csp')
+            self._lc = sncosmo.read_lc(self.lc_filename, format='csp')
             return self._lc
             
 class TestProblemFitContext(FitContext):
