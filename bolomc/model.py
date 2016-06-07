@@ -756,7 +756,7 @@ if __name__ == "__main__":
     
     # Arguments for the `run` parser, which handles starting new MCMC runs. 
     primary_parser.add_argument('lc_filename', help='The name of the light ' \
-                        'curve file to fit.', type=argparse.FileType('r'))
+                        'curve file to fit.', type=str)
     primary_parser.add_argument('nph', help='The number of phase points to use.',
                         type=int)
     primary_parser.add_argument('outfile', help='The name of the hdf5 ' \
