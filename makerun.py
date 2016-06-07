@@ -10,7 +10,7 @@ exe = os.path.join('/'.join(os.path.abspath(__file__).split('/')[:-1]),
 # Parameters
 
 #LOGFILE = None # Use stdout.
-NBURN = 5000 # Number of burn-in iterations.
+NBURN = 5000/3 # Number of burn-in iterations.
 NSAMP = 50 # Number of sampling iterations.
 NL = 10 * 2 
 #NL = None # Number of wavelength knots (regular grid).
