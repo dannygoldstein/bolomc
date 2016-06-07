@@ -47,13 +47,13 @@ rv_prior = TruncNorm(0, np.inf, rv, 1.)
 ebv_prior = TruncNorm(0, np.inf, ebv, 0.02)
 
 fc = bolomc.TestProblemFitContext(lc_filename=fname, 
-                                  nph=4, nl=4,
+                                  nph=10, nl=10,
                                   mwebv=mwebv,
                                   ebv_prior=ebv_prior,
                                   rv_prior=rv_prior,
                                   splint_order=3)
 
-nwalkers = 100
+nwalkers = fc.D * 2
 
 pvecs = []
 answer = np.asarray([sedw(*x) for x in fc.xstar])
