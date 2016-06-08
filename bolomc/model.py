@@ -183,10 +183,18 @@ class FitContext(object):
         self.hsiao = sncosmo.get_source('hsiao', version='3.0')
         self.hsiao._wave_log = np.log10(self.hsiao._wave)
         
-        # set up coarse grid
-        self.xstar_p = np.linspace(self.hsiao._phase[0], 
-                                   self.hsiao._phase[-1], 
+        # Set up coarse grid
+
+        self.xstar_p = np.linspace(self.hsiao._phase[0],
+                                   self.hsiao._phase[-1],
                                    self.nph)
+
+        if self.nph == 6:
+            xsp  = np.linspace(self.hsiao._phase[0],
+                               self.hsiao._phase[-1],
+                               10)
+            
+            self.xstar_p = np.concatenate((xsp[1:6], [xsp[7]]))
         
         # If no regular wavelength grid is specified...
         if self.nl is None:
@@ -200,30 +208,24 @@ class FitContext(object):
             self.xstar_l = np.logspace(np.log10(self.hsiao._wave[0]),
                                        np.log10(self.hsiao._wave[-1]),
                                        self.nl)
-            
+
         self.xstar_l_log = np.log10(self.xstar_l)
         
-        # Weave the full grid [a list of (phase, wavelength) points]. 
+        # Weave the full grid [a list of (phase, wavelength) points].
         self.xstar = np.asarray(list(product(self.xstar_p, 
                                              self.xstar_l)))
 
-        # Create a grid where the wavelength is in log space. 
+        # Create a grid where the wavelength is in log space.
         self.xstar_log = self.xstar.copy()
         self.xstar_log[:, 1] = np.log10(self.xstar_log[:, 1])
 
-        # Keep track of the spectral bin width. 
+        # Keep track of the spectral bin width.
         self.hsiao_binw = np.gradient(self.hsiao._wave)
         self.x_log = np.asarray(list(product(self.hsiao._phase,
                                     np.log10(self.hsiao._wave))))
         
         # Fit amplitude, t0.
         self._fit_guess()
-
-        # Compute the strides for nearest neighbor interpolation. 
-        
-        self.stride_l = self.hsiao._wave.size / self.nl
-        self.stride_p = self.hsiao._phase.size / self.nph
-
 
     def _fit_guess(self):
         # Get an initial guess for amplitude and t0.
