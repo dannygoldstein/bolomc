@@ -194,7 +194,7 @@ class FitContext(object):
                                self.hsiao._phase[-1],
                                10)
             
-            self.xstar_p = np.concatenate((xsp[1:6], [xsp[7]]))
+            self.xstar_p = np.concatenate((xsp[1:6], [xsp[-1]]))
         
         # If no regular wavelength grid is specified...
         if self.nl is None:
