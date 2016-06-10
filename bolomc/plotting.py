@@ -39,6 +39,47 @@ def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
     fig.colorbar(res)
     return fig
 
+def plot_wsurf_multi(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
+
+    import seaborn as sns
+    import matplotlib.cm as cm
+    import matplotlib.pyplot as plt
+    
+    """Produce a heatmap of a spectral warping surface. pgrid is the 1D
+    array of phase values, wgrid is the 1d array of wavelength values,
+    and warp is the 2D array of warping function values evaluated on
+    the grid.
+
+    """
+
+    fig, ax = plt.subplots(figsize=(5,10))
+    m = cm.viridis
+
+    warp_mean = warp.mean(0).T
+    warp_std = warp.std(0).T 
+
+    warp_mean -= warp_mean.min()
+    warp_mean /= warp_mean.max()
+    
+    rgba = m(warp_mean)
+    rgba[..., 3] = np.exp(-warp_std)
+
+    # Plot the surface. 
+    res = ax.imshow(rgba, extent=[wgrid[0], wgrid[-1],
+                                  pgrid[0], pgrid[-1]],
+                    aspect='auto')
+    #cmap=m, vmin=vmin, 
+    #vmax=vmax)
+    
+    if lc is not None:
+        ax.plot(lc['wave_eff'], lc['mjd'], 'k+')
+    
+    ax.invert_yaxis()
+    ax.set_xlabel('wavelength (AA)')
+    ax.set_ylabel('phase (days)')
+
+    fig.colorbar(res)
+    return fig
 
 def plot_wslices(pgrid, wgrid, warp):
 
