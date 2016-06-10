@@ -26,12 +26,45 @@ lowL = []
 medL = []
 uppL = []
 
+gals = []
+
 LOWPCT = 50 - 68 / 2.
 HIPCT = 50 + 68 / 2.
 
+def check_good(name):
+    with open('../run/goodfits.dat','r') as f:
+        for line in f:
+            if name in line:
+                if 'good' in line:
+                    return True
+                else:
+                    return False
+
+def get_galtype(name):
+    with open('../data/gal.dat','r') as f:
+        for line in f:
+            if name in line:
+                gtype = line.split("\" ")[-1]
+                if gtype.startswith("E"):
+                    return 'E'
+                if gtype.startswith("S"):
+                    return "S"
+                else:
+                    return None
+
 for target in targets:
+
+    name = target.split('h5')[0].split('/')[-1]
+    good = check_good(name)
+
+    if not good:
+        continue
+
+    galtype = get_galtype(name)
+
     this_dm15 = []
     this_L = []
+
     try:
         f = h5py.File(target)
     except IOError:
@@ -64,6 +97,16 @@ for target in targets:
     lowL.append(np.percentile(this_L, LOWPCT))
     medL.append(np.median(this_L))
     uppL.append(np.percentile(this_L, HIPCT))
+    
+    gals.append(galtype)
+    
+def color_gal(gal):
+    if gal == 'E':
+        return 'r'
+    elif gal == 'S':
+        return 'b'
+    else:
+        return 'k'
 
 # plotting
 
@@ -76,12 +119,16 @@ medL = np.asarray(medL)
 uppL = np.asarray(uppL)
 
 fig, ax = plt.subplots()
+
+gals = map(color_gal, gals)
+
 ax.errorbar(meddm15, medL, xerr=[meddm15 - lowdm15, uppdm15 - meddm15],
-            yerr=[medL - lowL, uppL - medL], fmt='.', color='k')
+            yerr=[medL - lowL, uppL - medL], fmt='.', color=gals)
 
 ax.set_ylim(1e42, 5e43)
 ax.set_yscale('log')
 ax.set_ylabel('log peak luminosity (erg / s)')
 ax.set_xlabel('dm15 (mag)')
 sns.despine(ax=ax)
+sns.set_style('ticks')
 fig.savefig('dm15.pdf')
