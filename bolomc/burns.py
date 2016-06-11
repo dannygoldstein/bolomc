@@ -9,7 +9,7 @@ import sncosmo
 import numpy as np
 from itertools import product
 from scipy.stats import uniform
-from distributions import TruncNorm
+from .distributions import TruncNorm
 
 bdfname = os.path.join('/'.join(__file__.split('/')[:-1]), '../data/burns2014.tab')
 t0name = os.path.join('/'.join(__file__.split('/')[:-1]), '../data/t0.dat')

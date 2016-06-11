@@ -3,7 +3,7 @@ __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Parameter vector class for MCMC sampling.'
 
 import numpy as np
-from errors import BoundsError
+from .errors import BoundsError
 
 class ParamVec(object):
 

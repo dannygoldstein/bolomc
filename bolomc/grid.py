@@ -3,7 +3,7 @@ __author__ = "Danny Goldstein <dgold@berkeley.edu>"
 __whatami__ = "Utilities for setting up an optimal wavelength grid."
 
 import numpy as np
-from util import filter_to_wave_eff as we
+from .util import filter_to_wave_eff as we
 
 def any_v(filters):
     return 'cspv3009' in filters \
