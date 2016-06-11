@@ -16,6 +16,8 @@ import h5py
 from bolomc import CSPFitContext, ParamVec
 import pickle
 
+sns.set_style('ticks')
+
 targets = glob.glob('../run/*h5_lores')
 
 lowdm15 = []
@@ -37,8 +39,7 @@ def check_good(name):
             if name in line:
                 if 'good' in line:
                     return True
-                else:
-                    return False
+    return False
 
 def get_galtype(name):
     with open('../data/gal.dat','r') as f:
@@ -54,7 +55,9 @@ def get_galtype(name):
 
 for target in targets:
 
-    name = target.split('h5')[0].split('/')[-1]
+    name = target.split('.h5')[0].split('/')[-1]
+    
+    print name
     good = check_good(name)
 
     if not good:
@@ -122,13 +125,13 @@ fig, ax = plt.subplots()
 
 gals = map(color_gal, gals)
 
-ax.errorbar(meddm15, medL, xerr=[meddm15 - lowdm15, uppdm15 - meddm15],
-            yerr=[medL - lowL, uppL - medL], fmt='.', color=gals)
+for i in range(len(gals)):
+    ax.errorbar(meddm15[i], medL[i], xerr=[[meddm15[i] - lowdm15[i]], [uppdm15[i] - meddm15[i]]],
+                yerr=[[medL[i] - lowL[i]], [uppL[i] - medL[i]]], fmt='.', color=gals[i])
 
 ax.set_ylim(1e42, 5e43)
 ax.set_yscale('log')
 ax.set_ylabel('log peak luminosity (erg / s)')
 ax.set_xlabel('dm15 (mag)')
 sns.despine(ax=ax)
-sns.set_style('ticks')
 fig.savefig('dm15.pdf')

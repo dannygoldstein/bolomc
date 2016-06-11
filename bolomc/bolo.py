@@ -30,15 +30,16 @@ class LCStack(object):
         self.L = np.atleast_2d(L)
         self.name = name
 
-    def plot(self):
+    def plot(self, ax=None):
 
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import seaborn as sns
         sns.set_style('ticks')
-
-        fig, ax = plt.subplots()
+        
+        if ax is None:
+            fig, ax = plt.subplots()
         
         median_L = np.median(self.L, axis=0)
         L_upper = np.percentile(self.L, 50 + 68 / 2., axis=0)
@@ -50,4 +51,4 @@ class LCStack(object):
         ax.set_xlabel('phase (days)')
         ax.set_ylabel('L (erg / s)')
         sns.despine(ax=ax)
-        return fig
+        return ax
