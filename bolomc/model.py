@@ -20,12 +20,12 @@ from scipy.optimize import minimize
 from astropy.cosmology import Planck13
 from astropy import units as u
 
-from burns import *
-from errors import *
-from util import *
-from grid import optimal_wavelength_grid
-from distributions import TruncNorm, stats
-from vec import ParamVec
+from .burns import *
+from .errors import *
+from .util import *
+from .grid import optimal_wavelength_grid
+from .distributions import TruncNorm, stats
+from .vec import ParamVec
 
 import h5py
 import emcee
