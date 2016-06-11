@@ -1,58 +1,86 @@
 
 __author__ = "Danny Goldstein <dgold@berkeley.edu>"
-__whatami__ = "Utilities for setting up an optimal wavelength grid."
+__whatami__ = "Warping surface grid."
 
 import numpy as np
-from .util import filter_to_wave_eff as we
 
-def any_v(filters):
-    return 'cspv3009' in filters \
-        or 'cspv3014' in filters \
-        or 'cspv9844' in filters
 
-def optimal_wavelength_grid(lc):
+class Mesh(np.ndarray):
 
-    grid = []
-    f = lc['filter']
+    def log(self, axes):
+        cp = self.copy()
+        cp[..., axes] = np.log10(cp[..., axes])
+        return cp 
+        
+        
+    def exp(self, axes):
+        cp = self.copy()
+        cp[..., axes] = 10**self[..., axes]
+        return cp 
+        
+
+class Grid(object):
     
-    filts, counts = np.unique(f, return_counts=True)
-    sfilt = filts[np.argsort(counts)[::-1]]
+    def __init__(self, dim_body, min_body, max_body):
+        
+        """A uniform n-dimensional grid object with body-centered
+        and face-centered veiws. 
+        
+        Parameters
+        ----------
+    
+        dim_body: iterable of ints, the shape of the grid (number of cells
+            along each dimension).
 
-    if 'cspu' in f:
-        grid.append(we('cspu'))
-    if 'cspb' in f:
-        grid.append(we('cspb'))
-    if 'cspg' in f and not ('cspb' in f and any_v(f)):
-        grid.append(we('cspg'))
-    if any_v(f):
-        for filt in sfilt:
-            if 'cspv' in filt:
-                vmost = filt
-                break
-        grid.append(we(vmost))
-    if 'cspr' in f:
-        grid.append(we('cspr'))
-    if 'cspi' in f:
-        grid.append(we('cspi'))
-    if 'cspys' in f or 'cspyd' in f:
-        for filt in sfilt:
-            if 'cspy' in filt:
-                ymost = filt
-                break
-        grid.append(we(ymost))
-    if 'cspjs' in f or 'cspjd' in f:
-        for filt in sfilt:
-            if 'cspj' in filt:
-                jmost = filt
-                break
-        grid.append(we(jmost))
-    if 'csphs' in f or 'csphd' in f:
-        for filt in sfilt:
-            if 'csph' in filt:
-                hmost = filt
-                break
-        grid.append(we(hmost))
-    if 'cspk' in f:
-        grid.append(we('cspk'))
+        min_body: iterable of floats, the body-centered minimum
+            coordinate along each dimension.
+        
+        max_body: iterable of floats, the body-centered maximum
+            coordinate along each dimension.
 
-    return np.asarray(grid)
+        """
+
+        self.dim_body = np.atleast_1d(dim)
+        self.min_body = np.atleast_1d(min_body)
+        self.max_body = np.atleast_1d(max_body)
+
+        # Simple checks on input.
+        if (self.dim < 1).any():
+            raise ValueError('no element of grid dim vector can be ' \
+                             'less than 1.' % self.dim)
+        if (min_body >= max_body).any():
+            raise ValueError('no element of min_body can be greater than or '\
+                             'equal to the corresponding element of max_body.')
+
+        # Compute cell size / body-centered spacing.
+        self.dx = (self.max_body - self.min_body) / (self.dim - 1)
+
+        # Create meshes.
+        # Body-centered. 
+        self.extents_body = [np.linspace(*args) for args in 
+                             zip(self.min_body, 
+                                 self.max_body, 
+                                 self.dim_body)]
+        
+
+        self.body = np.stack(np.meshgrid(*extents_body, indexing='ij', 
+                                         sparse=True), axis=-1).view(Mesh)
+        
+        # Face-centered. 
+        self.min_face = self.min_body - self.dx / 2
+        self.max_face = self.max_body + self.dx / 2
+        self.dim_face = self.dim_body + 1
+        
+        self.extents_face = [np.linspace(*args) for args in 
+                             zip(self.min_face, 
+                                 self.max_face, 
+                                 self.dim_face)]
+        
+        self.face = np.stack(np.meshgrid(*extents_face, indexing='ij', 
+                                         sparse=True), axis=-1).view(Mesh)
+        
+
+    def locate(self, data):
+        """Return a dictionary 
+        
+        
