@@ -20,6 +20,8 @@ from scipy.optimize import minimize
 from astropy.cosmology import Planck13
 from astropy import units as u
 
+import george
+
 from .burns import *
 from .errors import *
 from .util import *
@@ -147,32 +149,25 @@ def dust(s):
 
 class FitContext(object):
 
-    """Implementation of the PGM (Figure 1) from Goldstein & Kasen
-    (2016). Defines a set of priors and a likelihood function for
-    predicting bolometric light curves given broadband CSP photometry.
-
-    """
+    """Implementation of the Monte Carlo (Figure 1) from Goldstein & Kasen
+    (2016)."""
     
-    def __init__(self, lc_filename, nph, nl=NL, dust_type=DUST_TYPE,
-                 exclude_bands=EXCLUDE_BANDS, rv_bintype=RV_BINTYPE,
-                 splint_order=SPLINT_ORDER):
-
+    def __init__(self, lc_filename, nph, nl, params):
+        
         # Create the FitContext attributes.
-        self.dust_type = dust(dust_type)
-        self.exclude_bands = exclude_bands
-        self.splint_order = splint_order
+        self.dust_type = dust(params.dust_type)
+        self.exclude_bands = params.exclude_bands
+        self.splint_order = params.splint_order
+        self.rv_bintype = params.rv_bintype
+
         self.nph = nph
         self.nl = nl
-        self.passed_nl = nl
         self.lc_filename = lc_filename
 
         # self.lc is now an accessible attribute
 
         self.lc['wave_eff'] = map(filter_to_wave_eff, self.lc['filter'])
         self.lc.sort(['mjd', 'wave_eff'])
-
-        self.rv_bintype = rv_bintype
-
         self.bands = [sncosmo.get_bandpass(band) for
                       band in np.unique(self.lc['filter']) if
                       band not in self.exclude_bands]
@@ -181,51 +176,24 @@ class FitContext(object):
         # loaded every time _create_model is called.
 
         self.hsiao = sncosmo.get_source('hsiao', version='3.0')
-        self.hsiao._wave_log = np.log10(self.hsiao._wave)
         
-        # Set up coarse grid
+        # Set up grid
+        body_dim = (self.nph, self.nl)
+        body_min = (self.hsiao._phase[0], self.hsiao._wave[0])
+        body_max = (self.hsiao._phase[-1], self.hsiao._wave[-1])
 
-        self.xstar_p = np.linspace(self.hsiao._phase[0],
-                                   self.hsiao._phase[-1],
-                                   self.nph)
-
-        if self.nph == 6:
-            xsp  = np.linspace(self.hsiao._phase[0],
-                               self.hsiao._phase[-1],
-                               10)
-            
-            self.xstar_p = np.concatenate((xsp[1:6], [xsp[-1]]))
-        
-        # If no regular wavelength grid is specified...
-        if self.nl is None:
-            #...make the wavelength grid the effective wavelengths of
-            #the filters.
-            self.xstar_l = optimal_wavelength_grid(self.lc)
-            self.nl = self.xstar_l.size
-        else:
-            #...else lay down a regular grid with `nl` points over the
-            #Hsiao domain.
-            self.xstar_l = np.logspace(np.log10(self.hsiao._wave[0]),
-                                       np.log10(self.hsiao._wave[-1]),
-                                       self.nl)
-
-        self.xstar_l_log = np.log10(self.xstar_l)
-        
-        # Weave the full grid [a list of (phase, wavelength) points].
-        self.xstar = np.asarray(list(product(self.xstar_p, 
-                                             self.xstar_l)))
-
-        # Create a grid where the wavelength is in log space.
-        self.xstar_log = self.xstar.copy()
-        self.xstar_log[:, 1] = np.log10(self.xstar_log[:, 1])
-
-        # Keep track of the spectral bin width.
-        self.hsiao_binw = np.gradient(self.hsiao._wave)
-        self.x_log = np.asarray(list(product(self.hsiao._phase,
-                                    np.log10(self.hsiao._wave))))
+        self.grid = Grid(body_dim, body_min, body_max)
         
         # Fit amplitude, t0.
         self._fit_guess()
+        
+        # Initialize GP.
+        self._gp_init()
+
+    def _gp_init(self):
+        """Initialize the Gaussian Process object for this fit. """
+        
+        
 
     def _fit_guess(self):
         # Get an initial guess for amplitude and t0.
