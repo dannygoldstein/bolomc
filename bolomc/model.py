@@ -279,21 +279,6 @@ class FitContext(object):
         self._t0 = x
         self.lc['mjd'] = self.lc['mjd'] - self.t0
     
-    def _regrid_hsiao(self, warp_f):
-        """Take an SED warp matrix defined on a coarse grid and interpolate it
-        to the hsiao grid using a nearest neighbor scheme.
-
-        """
-
-        spl = RectBivariateSpline(self.xstar_p, # phase
-                                  self.xstar_l_log, # log wavelength
-                                  warp_f,
-                                  kx=self.splint_order,
-                                  ky=self.splint_order)
-        
-        return spl(self.hsiao._phase, 
-                   self.hsiao._wave_log)
-
     def _create_model(self, params):
         """If source is None, use Hsiao."""
         
