@@ -1,0 +1,114 @@
+* <2016-06-20 Mon>
+  
+  Ideas for bolometric light curve marginalization. 
+
+**  Monte carlo with backpropagation of errors. 
+    
+    Here we appropriate some techniques that are commonly used to
+    train deep neural networks to evaluate the multidimensional
+    integral that marginalizes over uncertainties related to reddening
+    and SED structure in our bolometric light curve problem.
+    
+    The procedure is a Monte Carlo simulation. 
+
+    We seek to estimate a vector of parameters that describes
+    reddening in the supernova host galaxy and multiplicative warping
+    to the Hsiao+2007 spectral template. The parameters are:
+
+    (Rv_host, E(B-V)_host, warp[0][0], warp[0][1], ... warp[NP][NL])
+
+    where NP is the number of phase points in the Hsiao template, and
+    NL is the number of wavelength points in the template. The final
+    size of the parameter vector should be something like 2.5e5. 
+    
+    At each iteration, the entire parameter vector is initialized
+    randomly. 
+
+    A tensorflow optimizer then uses backpropagation to
+    locate a local optimum / saddle point of the chisq surface. The
+    optimizer is run for a predetermined number of epochs.
+
+    The parameter vector returned by the final epoch of optimization
+    is appended to a list, kind of like how MCMC results are appended
+    to a list after burn in.
+
+    The Monte Carlo is run for a set number of iterations. Once it is
+    complete, the list of optimized parameter vectors is used to
+    generate photometry and a bolometric light curve. 
+    
+    Discussion:
+
+    Because the initialization of the parameter vector at each
+    iteration of the Monte Carlo is random, it should converge to a
+    different minimum at each iteration. The parameters that do not
+    affect the photometry will thus not stray far from their initial
+    values as backprop will determine that they do not greatly affect
+    the value of the cost function. 
+
+    Possible optimizers include: 
+    
+    (Gradient Descent, 
+     Stochastic Gradient Descent,
+     **Adam Optimization, etc.) <-- Might want to try using this one first. 
+
+    The model may need to be regularized. 
+
+    The regularization should penalize models that predict broadband
+    light curves that do not vary smoothly.
+
+    
+** Ideas from talking to JRG:
+   
+   Memorable quote: 
+   
+   ``Approximation is justified when evaluation of the full model is
+   computationally intractable." -- JRG
+
+   James suggested to:
+
+       * Put more informative priors on the warping function.
+       * Use physics / data to determine how degrees of freedom should
+         be injected into the warping function.
+       * Look for an intermediate data product (broadband light
+         curves, etc.?) that could be compared against model
+         predictions.
+       * Check to see if the assumption that the data can be described
+         by a distorted hsiao template is even right for each SN.
+       * Talk to Jessica Lu / Ian Czekala.
+       * Don't let your interpolant go negative!
+       * Try a principal component approach. 
+ 
+   For the last bullet point, I had the following idea:
+
+   *Dimensionality reduction on measured warping functions.*
+
+   A major issue with the spline / control point formulation of the
+   warping function is that the warping function values at points far
+   from the control points depend heavily on the layout of the control
+   point grid, which is arbitrary. If the control point grid is too
+   dense, it can introduce degrees of freedom into the warping
+   function that do not really exist (too many wiggles /
+   ``ringing"). If the control point grid is too sparse, then the
+   warping function can take on extreme values, and even go negative.
+
+   A better way to parametrize the warping function would be to
+   measure warping functions from spectra taken at specific phases,
+   assuming some representative reddening parameters, and then create
+   a principal component basis from those measured warping functions.
+
+   The MCMC could then proceed over the coefficients of the components
+   of that basis, rather than the values of warping function. 
+   
+   The issues with this idea are that all available spectra from
+   different SNe are taken at different phases. I'd need to do some
+   binning or interpolation to create the high dimensional space that
+   gets compressed.
+   
+   Also, it's not clear that PCA would really be able to do a good job
+   capturing the variability of this dataset, even if the above
+   problem is solved.
+   
+#+CAPTION: Measured warping function for SN2005el at peak. 
+#+NAME: [[fig:warpmeas]]
+
+   
