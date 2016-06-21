@@ -108,7 +108,6 @@
    capturing the variability of this dataset, even if the above
    problem is solved.
    
-#+CAPTION: Measured warping function for SN2005el at peak. 
-#+NAME: [[fig:warpmeas]]
-
+   
+   
    
