@@ -2,6 +2,7 @@
   
   Ideas for bolometric light curve marginalization. 
 
+#+NAME: ADAM
 **  Monte carlo with backpropagation of errors. 
     
     Here we appropriate some techniques that are commonly used to
@@ -108,6 +109,30 @@
    capturing the variability of this dataset, even if the above
    problem is solved.
    
-   
-   
-   
+* <2016-06-22 Wed>
+
+  I've started working on implementing [[ADAM][my MC backprop]] idea for
+  bolometric light curve inference using Tensorflow. The meatiest part
+  of this is implementing the extinction laws like CCM89 or OD94 in
+  that framework. This has to be done so that gradients of the
+  likelihood function can be taken with respect to reddening
+  parameters like E(B-V) and Rv.
+
+  I'm going to start by taking Kyle Barbary's
+  [[https://github.com/kbarbary/extinction/blob/master/extinction.pyx]]
+  file and rewriting it in Tensorflow. The main functions that will
+  need to be implemented will be
+  
+  od94(wave, ebv, Rv)
+  ccm89(wave, ebv, Rv)
+  f99(wave, ebv, Rv)
+
+  The return values of each of these functions will be a tensor of
+  shape wave.shape that stores the reddening transmission at each
+  wavelength. 
+  
+  wave, ebv, and Rv will all be tensors. 
+
+
+  
+  
