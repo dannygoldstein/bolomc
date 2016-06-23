@@ -132,7 +132,65 @@
   wavelength. 
   
   wave, ebv, and Rv will all be tensors. 
+  
+  [2016-06-22 Wed 18:32]
+
+  Learned that it's going to be hard to implement these in tensorflow
+  since they involve a lot of slicing and conditional operations on
+  the wavelength tensor. Searching for a better way. 
+
+  [2016-06-22 Wed 18:19]
+  #+NAME: babushkin-issue
+  [[https://github.com/tensorflow/tensorflow/issues/2990][github issue]]
+  
+  Was unable to repeatedly initialize a =tf.Variable= constructed with
+  a python callable, e.g., 
+  
+  #+begin_src python
+
+  import tensorflow as tf
+  import scipy
+
+  session = tf.InteractiveSession()
+  retrand = lambda: scipy.random.random(size=[2,2])
+  var = tf.Variable(retrand, dtype=tf.float32)
+  session.run(var.initializer)
+  var.eval()
+  # prints array([[ 0.73060566,  0.26469722],
+  #               [ 0.63376802,  0.64898247]], dtype=float32)
+  session.run(var.initializer)
+  var.eval()
+  # prints array([[ 0.73060566,  0.26469722],
+  #              [ 0.63376802,  0.64898247]], dtype=float32)
+  # (same as first call)
+  
+  #+end_src python 
+  
+  [[https://github.com/ibab][Igor Babushkin]] at CERN showed me that the answer is to wrap the
+  callable with =tf.py_func= call. See [[babushkin-issue][the github issue]] for more
+  details.
+
+  [2016-06-22 Wed 18:31]
+  #+NAME: custom-gradients
+  
+  I may not need to worry about reimplementing reddening laws in
+  =sncosmo=, as I've learned that it's possible to make tensorflow
+  operations out of pure python functions. 
+
+  This github issue
+
+      [[https://github.com/tensorflow/tensorflow/issues/1095]]
+      
+  describes how to define custom gradient functions in python for
+  operators created with =tf.py_func=. I'm not totally sure what the
+  meaning of the =grad= parameter in those custom gradient functions
+  is (I understand what the =op= parameter) means, so I opened a
+  question about it on StackOverflow:
+  
+      [[http://stackoverflow.com/questions/37980518/meaning-of-grad-parameter-in-tensorflow-custom-gradient-functions-python][stack overflow question]]
+      
+  Getting ready to go to the airport now, hopefully there will be a
+  response by the time I get there.
 
 
-  
-  
+      
