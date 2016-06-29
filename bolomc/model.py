@@ -187,13 +187,6 @@ class FitContext(object):
         # Fit amplitude, t0.
         self._fit_guess()
         
-        # Initialize GP.
-        self._gp_init()
-
-    def _gp_init(self):
-        """Initialize the Gaussian Process object for this fit. """
-        
-        
 
     def _fit_guess(self):
         # Get an initial guess for amplitude and t0.
@@ -246,6 +239,7 @@ class FitContext(object):
             pass
         self._t0 = x
         self.lc['mjd'] = self.lc['mjd'] - self.t0
+        
     
     def _regrid_hsiao(self, warp_f):
         """Take an SED warp matrix defined on a coarse grid and interpolate it
