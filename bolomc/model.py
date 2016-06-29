@@ -13,6 +13,7 @@ import abc
 import glob
 import sncosmo
 import numpy as np
+import tensorflow as tf
 
 from itertools import product
 from scipy.interpolate import RectBivariateSpline, interp1d
@@ -181,52 +182,65 @@ class FitContext(object):
         # loaded every time _create_model is called.
 
         self.hsiao = sncosmo.get_source('hsiao', version='3.0')
-        self.hsiao._wave_log = np.log10(self.hsiao._wave)
         
-        # Set up coarse grid
-
-        self.xstar_p = np.linspace(self.hsiao._phase[0],
-                                   self.hsiao._phase[-1],
-                                   self.nph)
-
-        if self.nph == 6:
-            xsp  = np.linspace(self.hsiao._phase[0],
-                               self.hsiao._phase[-1],
-                               10)
-            
-            self.xstar_p = np.concatenate((xsp[1:6], [xsp[-1]]))
         
-        # If no regular wavelength grid is specified...
-        if self.nl is None:
-            #...make the wavelength grid the effective wavelengths of
-            #the filters.
-            self.xstar_l = optimal_wavelength_grid(self.lc)
-            self.nl = self.xstar_l.size
-        else:
-            #...else lay down a regular grid with `nl` points over the
-            #Hsiao domain.
-            self.xstar_l = np.logspace(np.log10(self.hsiao._wave[0]),
-                                       np.log10(self.hsiao._wave[-1]),
-                                       self.nl)
-
-        self.xstar_l_log = np.log10(self.xstar_l)
-        
-        # Weave the full grid [a list of (phase, wavelength) points].
-        self.xstar = np.asarray(list(product(self.xstar_p, 
-                                             self.xstar_l)))
-
-        # Create a grid where the wavelength is in log space.
-        self.xstar_log = self.xstar.copy()
-        self.xstar_log[:, 1] = np.log10(self.xstar_log[:, 1])
-
-        # Keep track of the spectral bin width.
-        self.hsiao_binw = np.gradient(self.hsiao._wave)
-        self.x_log = np.asarray(list(product(self.hsiao._phase,
-                                    np.log10(self.hsiao._wave))))
         
         # Fit amplitude, t0.
         self._fit_guess()
+        
+        # Build the tensorflow expression graph.
+        self._build_graph()
+        
+    def _build_graph(self):
+        """Build the tensorflow expression graph."""
 
+        # Light curve fluxes, segregated by band. 
+        self._lc_F = {band:tf.constant(
+            self.lc[self.lc['filter'] == band]['flux']) 
+                  for band in self.bands}
+
+        # Light curve flux errors, segregated by band. 
+        self._lc_F_std = {band:tf.constant(
+            self.lc[self.lc['filter'] == band]['flux_err'])
+                          for band in self.bands}
+
+        # Light curve zeropoints, segregated by band.
+        self._lc_zp = {band:tf.constant(
+            self.lc[self.lc['filter'] == band]['zp'])
+                       for band in self.bands}
+        
+        # Light curve zero point systems, segregated by band.
+        self._lc_zpsys = {band:[self.lc[
+            self.lc['filter'] == band]['zpsys'] for band in bands]}
+        
+        self.hsiao_T = tf.constant(self.hsiao._passed_flux)
+        
+        # Warping function. 
+        self.W = tf.Variable(tf.random_uniform([len(self.hsiao._phase),
+                                                len(self.hsiao._wave)],
+                                               minval=0, maxval=2)) # maybe
+                                                                    # adjust
+                                                                    # this
+                                                                    # range
+        self.amplitude_T = tf.constant(self.amplitude)
+
+        # Host galaxy reddening parameters.
+        self.Rv = tf.Variable(self.rv_prior.rvs())
+        self.ebv = tf.Variable(self.ebv_prior.rvs())
+
+        
+        self.warped_template = self.W * self.hsiao_T * self.amplitude_T
+
+        # TODO:: implement od94
+        self.reddened_warped_template = od94(self.warped_template, self.Rv, self.ebv)
+        
+        
+        
+        
+        
+        
+
+                                                                    
     def _fit_guess(self):
         # Get an initial guess for amplitude and t0.
         guess_mod = sncosmo.Model(source=self.hsiao,

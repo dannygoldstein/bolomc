@@ -1,7 +1,22 @@
 __whatami__ = 'Dust extinction in tensorflow.'
 __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
+__all__ = ['fitzpatrick99', 'od94']
 
 import tensorflow as tf
+
+# Optical coefficients for CCM89-like laws:
+ccm89_coeffs_n = 8
+ccm89_coeffs_a = tf.constant([1., 0.17699, -0.50447, -0.02427, 0.72085,
+                              0.01979, -0.77530, 0.32999])
+ccm89_coeffs_b = tf.constant([0., 1.41338, 2.28305, 1.07233, -5.38434,
+                              -0.62251, 5.30260, -2.09002])
+od94_coeffs_n = 9
+od94_coeffs_a = tf.constant([1., 0.17699, -0.50447, -0.02427, 0.72085,
+                             0.01979, -0.77530, 0.32999])
+od94_coeffs_b = tf.constant([0., 1.952, 2.908, -3.989, -7.985, 11.102,
+                             5.491, -10.805, 3.347])
+
+def _ccm89like(wave, 
 
 def fitzpatrick99(wave, ebv, r_v=3.1):
     """Fitzpatrick (1999) dust extinction function for arbitrary R_V.
@@ -58,4 +73,9 @@ def od94(wave, ebv, r_v):
         Where F_trans and F_incident are both monochromatic flux
         densities.
     """
+    
+    a_v = ebv * r_v
+    
+    
+
     pass
