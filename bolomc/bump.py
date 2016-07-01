@@ -148,8 +148,7 @@ class BumpSource(sncosmo.Source):
     """
 
     BUMPS = [Bump('UV', 1000., 3000., -20, 20),
-             Bump('blue', 3000., 5600., -20, 20),
-             Bump('r', 5600., 6900., -20, 15),
+             Bump('blue', 3000., 6900., -20, 20),
              Bump('i1', 6900., 9000., -20, 15),
              Bump('i2', 6900., 9000., 15, 42),
              Bump('y1', 9000., 11200., -20, 13.6),
@@ -172,7 +171,8 @@ class BumpSource(sncosmo.Source):
         self._param_names = ['amplitude', 's']
         self.param_names_latex = ['A', 's']
         self._parameters = np.array([1., 1.])
-        self._model_flux = Spline2d(self._phase, self._wave, self._passed_flux, kx=2, ky=2)
+        self._model_flux = Spline2d(self._phase, self._wave, 
+                                    self._passed_flux, kx=2, ky=2)
         self.bumps = copy(self.BUMPS)
         
         for bump in self.bumps:
@@ -191,7 +191,8 @@ class BumpSource(sncosmo.Source):
         f = (self._parameters[0] *
              self._model_flux(phase / self._parameters[1], wave))
         for i, bump in enumerate(self.bumps):
-            f *= (1 + self._parameters[i + 2] * bump.kernel(phase / self._parameters[1], wave))
+            f *= (1 + self._parameters[i + 2] * \ 
+                  bump.kernel(phase / self._parameters[1], wave))
         return f
     
         
