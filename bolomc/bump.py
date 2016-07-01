@@ -165,16 +165,14 @@ class BumpSource(sncosmo.Source):
 
         self.name = name
         self.version = version
-
         hsiao = sncosmo.get_source("hsiao", version='3.0')        
-        phase = hsiao._phase
-        wave = hsiao._wave
-        flux = hsiao._passed_flux
-
+        self._phase = hsiao._phase
+        self._wave = hsiao._wave
+        self._passed_flux = hsiao._passed_flux
         self._param_names = ['amplitude', 's']
         self.param_names_latex = ['A', 's']
         self._parameters = np.array([1., 1.])
-        self._model_flux = Spline2d(phase, wave, flux, kx=2, ky=2)
+        self._model_flux = Spline2d(self._phase, self._wave, self._passed_flux, kx=2, ky=2)
         self.bumps = copy(self.BUMPS)
         
         for bump in self.bumps:
