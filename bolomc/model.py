@@ -20,8 +20,6 @@ from scipy.optimize import minimize
 from astropy.cosmology import Planck13
 from astropy import units as u
 
-import george
-
 from .burns import *
 from .errors import *
 from .util import *
@@ -172,17 +170,12 @@ class FitContext(object):
                       band in np.unique(self.lc['filter']) if
                       band not in self.exclude_bands]
 
-        # Load Hsiao SED into memory here so it doesn't have to be
-        # loaded every time _create_model is called.
+        # Create a StretchSource from the hsiao template to avoid
+        # having to repeatedly load it into memory. 
 
         self.hsiao = sncosmo.get_source('hsiao', version='3.0')
         
-        # Set up grid
-        body_dim = (self.nph, self.nl)
-        body_min = (self.hsiao._phase[0], self.hsiao._wave[0])
-        body_max = (self.hsiao._phase[-1], self.hsiao._wave[-1])
-
-        self.grid = Grid(body_dim, body_min, body_max)
+        
         
         # Fit amplitude, t0.
         self._fit_guess()
