@@ -6,6 +6,8 @@ __whatami__ = 'Subclass of sncosmo.Model that implements ' \
 import sncosmo
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
+from scipy.interpolate import RectBivariateSpline as Spline2d
+from copy import copy
 
 
 class SmoothTophat(object):
@@ -39,16 +41,13 @@ class Gaussian(object):
 class Bump(object):
     
     def __init__(self, name, minwave, maxwave, minphase, maxphase):
-        self._name = name
+        self.name = name
         self._minwave = minwave
         self._maxwave = maxwave
         self._minphase = minphase
         self._maxphase = maxphase
-        self._tophat = smooth_tophat(minwave, maxwave, 2.)
+        self._tophat = SmoothTophat(minwave, maxwave, 0.05)
 
-    def name(self):
-        return self._name
-        
     def minphase(self):
         return self._minphase
         
@@ -84,8 +83,7 @@ class Bump(object):
         return th_l and th_r and gs_l and gs_r
 
 
-    def _fit_kernel(self, source, 
-                    guess=(.5*(self.minphase() + self.maxphase()), 5.)):
+    def _fit_kernel(self, source, guess=None):
 
         """Fit the `mu` and `sigma` parameters of the gaussian (phase)
         component of the kernel.
@@ -97,44 +95,107 @@ class Bump(object):
 
         chisq_phases = np.linspace(self.minphase(), self.maxphase())
         
+        if guess is None:
+            guess=(.5*(self.minphase() + self.maxphase()), 5.)
+        
+        
         lc = source.flux(chisq_phases, wave).sum(-1)
         lc /= lc.max() # normalize so max = 1 (same as amplitude of
                        # gaussian)
 
         def chisq((mu, sigma)):
-            pred = gaussian(mu, sigma)(chisq_phases)
+            pred = Gaussian(mu, sigma)(chisq_phases)
             
             # bounds checking 
-            l = mu - 2 * sigma
-            r = mu + 2 * sigma
+            l = mu - sigma
+            r = mu + sigma
             
             if r > self.maxphase() or l < self.minphase():
                 return np.inf
 
             return np.sum((lc - pred)**2)
             
-        x, f, d = fmin_l_bfgs_b(chisq, guess, approx_grad=True)
+        opt, f, d = fmin_l_bfgs_b(chisq, guess, approx_grad=True)
+        
         if d['warnflag'] == 0:
-            self._gaussian = gaussian(*x)
+            self._gaussian = Gaussian(*opt)
         else:
             raise RuntimeError(d['warnflag'])
 
     
-class BumpSource(sncosmo.StretchSource):
+class BumpSource(sncosmo.Source):
 
-    def __init__(self, phase, wave, flux, bumps, name=None, version=None):
-        super(BumpSource, self).__init__(phase, wave, flux, 
-                                         name=name, version=version)
+    """A single-component spectral time series model, that "stretches" in
+    time.
+
+    The spectral flux density of this model is given by
+
+    .. math::
+
+       F(t, \lambda) = A \\times M(t / s, \lambda)
+
+    where _A_ is the amplitude and _s_ is the "stretch".
+
+    Parameters
+    ----------
+    phase : `~numpy.ndarray`
+        Phases in days.
+    wave : `~numpy.ndarray`
+        Wavelengths in Angstroms.
+    flux : `~numpy.ndarray`
+        Model spectral flux density in erg / s / cm^2 / Angstrom.
+        Must have shape `(num_phases, num_disp)`.
+    """
+
+    BUMPS = [Bump('UV', 1000., 3000., -20, 20),
+             Bump('blue', 3000., 5600., -20, 20),
+             Bump('r', 5600., 6900., -20, 15),
+             Bump('i1', 6900., 9000., -20, 15),
+             Bump('i2', 6900., 9000., 15, 42),
+             Bump('y1', 9000., 11200., -20, 13.6),
+             Bump('y2', 9000., 11200., 13.6, 43.),
+             Bump('j1', 11200., 14000., -20, 15.),
+             Bump('j2', 11200., 14000., 15., 43.),
+             Bump('h1', 14000., 19000.,-20., 6.),
+             Bump('h2', 14000., 19000., 15., 43.),
+             Bump('k1', 19000., 25000., -20., 15.),
+             Bump('k2', 19000., 25000., 15., 43.)]
+
+    def __init__(self, name=None, version=None):
+
+        self.name = name
+        self.version = version
+
+        hsiao = sncosmo.get_source("hsiao", version='3.0')        
+        phase = hsiao._phase
+        wave = hsiao._wave
+        flux = hsiao._passed_flux
+
+        self._param_names = ['amplitude', 's']
+        self.param_names_latex = ['A', 's']
+        self._parameters = np.array([1., 1.])
+        self._model_flux = Spline2d(phase, wave, flux, kx=2, ky=2)
+        self.bumps = copy(self.BUMPS)
         
-        self.bumps = bumps
         for bump in self.bumps:
-            bump._fit_kernel(self)
-            self._parameters.append(1.)
+            bump._fit_kernel(hsiao)
+            self._parameters = np.concatenate((self._parameters, [0.]))
             self._param_names.append(bump.name + '_bump_amp')
             self.param_names_latex.append(bump.name + '_A')
+
+    def minphase(self):
+        return self._parameters[1] * self._phase[0]
+
+    def maxphase(self):
+        return self._parameters[1] * self._phase[-1]
         
-    def flux(self, phase, wave):
-        f = super(BumpSource, self).flux(phase, wave)
+    def _flux(self, phase, wave):
+        f = (self._parameters[0] *
+             self._model_flux(phase / self._parameters[1], wave))
         for bump in self.bumps:
-            f *= (1 + bump.kernel(phase, wave))
+            f *= (1 + bump.kernel(phase / self._parameters[1], wave))
         return f
+    
+        
+                      
+                       
