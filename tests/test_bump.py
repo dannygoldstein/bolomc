@@ -29,11 +29,12 @@ vparams = filter(lambda x: 'bump' in x, model._param_names)
 vparams += ['hostebv','hostr_v', 't0', 's']
 bounds = {b.name + "_bump_amp":(-1.,1.) for b in 
                                  model.source.bumps}
-
-res, model = sncosmo.fit_lc(lc,model,['amplitude']+vparams)
-
 bounds['hostr_v'] = (0, 6.)
 bounds['hostebv'] = (0, 0.2)
+
+res, model = sncosmo.fit_lc(lc,model,['amplitude']+vparams,
+                            bounds=bounds)
+
 
 
 result = sncosmo.mcmc_lc(lc, model, vparams, priors={'hostebv':ebv_prior,
