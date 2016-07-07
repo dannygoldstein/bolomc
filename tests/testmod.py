@@ -28,10 +28,21 @@ model2.set(UV_bump_amp=0.2,#blue_bump_amp=0.2,
            k1_bump_amp=-0.2, 
            k2_bump_amp=0.2)
 
+bump_map = ['blue',
+            'blue',
+            'blue',
+            'blue',
+            'blue',
+            'i',
+            'y',
+            'j',
+            'h',
+            'k']
+
 
 fig = sncosmo.plot_lc(model=[model, model2], bands=np.unique(lc['filter']))
 
-for ax in fig.axes:
+for i,ax in enumerate(fig.axes):
     try:
         line1, line2 = ax.lines[:2]
         x = line1.get_xdata()
@@ -39,6 +50,13 @@ for ax in fig.axes:
         y = line1.get_ydata()
         ax.plot(x, y2-y, color=line1.get_color(),
                 ls=':')
+        name = bump_map[i]
+        bumps = filter(lambda bump: name in bump.name, model.source.bumps)
+        for color, bump in zip(['k','g','r'], bumps):
+            mu = bump._gaussian.mu
+            sigma = bump._gaussian.sigma
+            for x in [mu - sigma, mu, mu + sigma]:
+                ax.axvline(x, color=color, linestyle=':')
     except Exception as e:
         print e
         pass
