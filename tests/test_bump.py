@@ -32,7 +32,7 @@ bounds = {b.name + "_bump_amp":(-1.,1.) for b in
 bounds['hostr_v'] = (0, 6.)
 bounds['hostebv'] = (0, 0.2)
 
-res, model = sncosmo.fit_lc(lc,model,['amplitude']+vparams,
+res, model = sncosmo.fit_lc(lc,model,['amplitude0', 'amplitude1']+vparams,
                             bounds=bounds)
 
 

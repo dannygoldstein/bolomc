@@ -153,6 +153,7 @@ class BumpSource(sncosmo.Source):
              Bump('i2', 6900., 9000., 20, 32),
              Bump('y1', 9000., 11200., -10, 6),
              Bump('y2', 9000., 11200., 23., 38.),
+             Bump('ytrough', 9000., 11200., 6, 23.),
              Bump('j1', 11200., 14000., -20, 15.),
              Bump('j2', 11200., 14000., 15.+6, 43.-6),
              Bump('h1', 14000., 19000.,-10., 6.),
@@ -168,9 +169,9 @@ class BumpSource(sncosmo.Source):
         self._phase = hsiao._phase
         self._wave = hsiao._wave
         self._passed_flux = hsiao._passed_flux
-        self._param_names = ['amplitude', 's']
-        self.param_names_latex = ['A', 's']
-        self._parameters = np.array([1., 1.])
+        self._param_names = ['amplitude0', 'amplitude1', 's']
+        self.param_names_latex = ['A_0', 'A_1', 's']
+        self._parameters = np.array([1., 0., 1.])
         self._model_flux = Spline2d(self._phase, self._wave, 
                                     self._passed_flux, kx=2, ky=2)
         self.bumps = copy(self.BUMPS)
@@ -182,17 +183,20 @@ class BumpSource(sncosmo.Source):
             self.param_names_latex.append(bump.name + '_A')
 
     def minphase(self):
-        return self._parameters[1] * self._phase[0]
+        return self._parameters[2] * self._phase[0]
 
     def maxphase(self):
-        return self._parameters[1] * self._phase[-1]
+        return self._parameters[2] * self._phase[-1]
         
     def _flux(self, phase, wave):
-        f = (self._parameters[0] *
-             self._model_flux(phase / self._parameters[1], wave))
+        mf = self._model_flux(phase / self._parameters[2], wave)
+        amp = (self._parameters[0] + self._parameters[1] * wave) 
+        if mf.ndim == 2:
+            amp = np.atleast_2d(amp)
+        f = mf * amp
         for i, bump in enumerate(self.bumps):
-            f *= (1 + self._parameters[i + 2] * \
-                  bump.kernel(phase / self._parameters[1], wave))
+            f *= (1 + self._parameters[i + 3] * \
+                  bump.kernel(phase / self._parameters[2], wave))
         return f
     
         
