@@ -7,7 +7,7 @@ from bolomc import burns
 from bolomc.distributions import TruncNorm
 import glob
 
-lc_files = glob.glob('../data/CSP_Photometry_DR2/*.dat')
+lc_files = glob.glob('../data/CSP_Photometry_DR2/*.dat')[40:70]
 for lc_file in lc_files:
     try:
 
@@ -36,6 +36,7 @@ for lc_file in lc_files:
                                          model.source.bumps}
         bounds['hostr_v'] = (0, 6.)
         bounds['hostebv'] = (0, 0.2)
+        bounds['s'] = (0, 3.)
 
         res, model = sncosmo.fit_lc(lc,model,['amplitude0', 'amplitude1']+vparams,
                                     bounds=bounds)
