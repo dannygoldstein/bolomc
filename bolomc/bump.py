@@ -147,7 +147,7 @@ class BumpSource(sncosmo.Source):
         Must have shape `(num_phases, num_disp)`.
     """
 
-    BUMPS = [Bump('UV', 1000., 3500., -20, 20),
+    BUMPS = [Bump('UV', 1000., 3500., -7., 6),
              Bump('blue', 3500., 6900., -20, 20),
              Bump('i1', 6900., 9000., -20, 15),
              Bump('i2', 6900., 9000., 15, 42),
