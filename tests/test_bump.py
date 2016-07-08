@@ -36,13 +36,14 @@ res, model = sncosmo.fit_lc(lc,model,['amplitude']+vparams,
                             bounds=bounds)
 
 
-
+"""
 result = sncosmo.mcmc_lc(lc, model, vparams, priors={'hostebv':ebv_prior,
                                                      'hostr_v':rv_prior},
                          bounds=bounds,
                          nwalkers=200,
                          nburn=1,
                          nsamples=20)
+"""
 
                 
 
