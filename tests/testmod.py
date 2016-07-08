@@ -62,8 +62,6 @@ for i,ax in enumerate(fig.axes):
         pass
     
         
-fig.savefig('bump.pdf')
+fig.savefig('newbump.pdf')
         
         
-        
-
