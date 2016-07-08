@@ -40,13 +40,14 @@ class Gaussian(object):
 
 class Bump(object):
     
-    def __init__(self, name, minwave, maxwave, minphase, maxphase):
+    def __init__(self, name, minwave, maxwave, minphase, maxphase, neg=False):
         self.name = name
         self._minwave = minwave
         self._maxwave = maxwave
         self._minphase = minphase
         self._maxphase = maxphase
         self._tophat = SmoothTophat(minwave, maxwave, 0.05)
+        self.neg = neg
 
     def minphase(self):
         return self._minphase
@@ -100,8 +101,11 @@ class Bump(object):
         
         
         lc = source.flux(chisq_phases, wave).sum(-1)
-        lc /= lc.max() # normalize so max = 1 (same as amplitude of
-                       # gaussian)
+        lc /= lc.max() if not self.neg else lc.min() # normalize so
+                                                     # max = 1 (same
+                                                     # as amplitude of
+                                                     # gaussian)
+                       
 
         def chisq((mu, sigma)):
             pred = Gaussian(mu, sigma)(chisq_phases)
@@ -153,7 +157,7 @@ class BumpSource(sncosmo.Source):
              Bump('i2', 6900., 9000., 20, 32),
              Bump('y1', 9000., 11200., -10, 6),
              Bump('y2', 9000., 11200., 23., 38.),
-             Bump('ytrough', 9000., 11200., 6, 23.),
+             Bump('ytrough', 9000., 11200., 6, 23., neg=True),
              Bump('j1', 11200., 14000., -20, 15.),
              Bump('j2', 11200., 14000., 15.+6, 43.-6),
              Bump('h1', 14000., 19000.,-10., 6.),
