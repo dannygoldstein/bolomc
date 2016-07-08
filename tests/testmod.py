@@ -15,7 +15,7 @@ model = sncosmo.Model(bump.BumpSource(),
                       effects=[sncosmo.OD94Dust(), sncosmo.F99Dust()])
 
 model2 = copy(model)
-model2.set(UV_bump_amp=0.2,#blue_bump_amp=0.2,
+model2.set(UV_bump_amp=1.,#blue_bump_amp=0.2,
            blue_bump_amp=-0.2, 
            i1_bump_amp=0.1,
            i2_bump_amp=-0.2,
