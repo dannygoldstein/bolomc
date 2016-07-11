@@ -206,3 +206,8 @@ class BumpSource(sncosmo.Source):
         
                       
                        
+class BumpModel(sncosmo.Model):
+    
+    def has_valid_params(self):
+        return not (self.source._passed_flux < -1e-24).any()
+        
