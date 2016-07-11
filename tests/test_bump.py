@@ -32,7 +32,7 @@ for lc_file in lc_files:
 
         vparams = filter(lambda x: 'bump' in x, model._param_names)
         vparams += ['hostebv','hostr_v', 't0', 's']
-        bounds = {b.name + "_bump_amp":(-1.5,1.5) for b in 
+        bounds = {b.name + "_bump_amp":(-1,2) for b in 
                                          model.source.bumps}
         bounds['hostr_v'] = (0, 6.)
         bounds['hostebv'] = (0, 0.2)
