@@ -53,7 +53,8 @@ def task(filename):
                              nsamples=20)
     
     samples = result[0].samples
-    Matplot.plot(samples, '%s.samples' % lc.meta['name'], format='pdf', path='fits')
+    Matplot.plot(samples, '%s.samples' % lc.meta['name'], format='pdf', path='fits',
+                 common_scale=False)
     vparams = result[0].vparam_names
     dicts = [dict(zip(vparams, samp)) for samp in samples]
 
