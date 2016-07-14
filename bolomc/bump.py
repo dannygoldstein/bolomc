@@ -179,7 +179,7 @@ class BumpSource(sncosmo.Source):
         return self._parameters[1] * self._phase[-1]
         
     def _flux(self, phase, wave):
-        mf = self._model_flux(phase / self._parameters[1], wave) * self._parameters[0]
+        f = self._model_flux(phase / self._parameters[1], wave) * self._parameters[0]
         for i, bump in enumerate(self.bumps):
             f *= (1 + self._parameters[i + 2] * \
                   bump.kernel(phase / self._parameters[1], wave))
