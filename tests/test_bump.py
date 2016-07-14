@@ -41,8 +41,12 @@ def task(filename):
     bounds['hostebv'] = (0, 0.2)
     bounds['s'] = (0, 3.)
 
-    res, model = sncosmo.fit_lc(lc,model,['amplitude0', 'amplitude1']+vparams,
+    res, model = sncosmo.fit_lc(lc,model,['amplitude']+vparams,
                                 bounds=bounds)
+    
+    vparams.append('amplitude')
+    bounds['amplitude'] = (0.5 * model.get('amplitude'), 
+                           2 * model.get('amplitude'))
 
 
     result = sncosmo.mcmc_lc(lc, model, vparams, priors={'hostebv':ebv_prior,
@@ -53,10 +57,13 @@ def task(filename):
                              nsamples=20)
     
     samples = result[0].samples
-    Matplot.plot(samples, '%s.samples' % lc.meta['name'], format='pdf', path='fits',
-                 common_scale=False)
     vparams = result[0].vparam_names
     dicts = [dict(zip(vparams, samp)) for samp in samples]
+    matplot_dict = dict(zip(vparams, samples.T))
+
+    Matplot.plot(matplot_dict, lc.meta['name'], 
+                 format='pdf', path='fits',
+                 common_scale=False)
 
     thinned = samples.reshape(500, 20, -1)[:, [0, -1]].reshape(1000, -1)
 
