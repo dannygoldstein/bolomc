@@ -29,8 +29,8 @@ class TruncNorm(object):
             return self._b
 
     def __call__(self, x):
-        return stats.truncnorm.pdf(x, self.a, self.b, loc=self.loc,
-                                   scale=self.scale)
+        return stats.truncnorm.logpdf(x, self.a, self.b, loc=self.loc,
+                                      scale=self.scale)
 
     def rvs(self, n=None):
         return stats.truncnorm.rvs(self.a, self.b, loc=self.loc, 
