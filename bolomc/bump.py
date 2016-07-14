@@ -70,20 +70,6 @@ class Bump(object):
         wslice = 0 if wave.ndim == 0 else slice(None)
         return result[pslice, wslice]
 
-    def affects(self, phase, wave, nsigma=4):
-        """True if `phase` and `wave` are within the area of influence of the
-        kernel.
-
-        """
-        th_l = wave >= self._tophat.l
-        th_r = wave <= self._tophat.r
-        
-        gs_l = phase >= self._gaussian.mu - nsigma * self._gaussian.sigma
-        gs_r = phase <= self._gaussian.mu + nsigma * self._gaussian.sigma
-        
-        return th_l and th_r and gs_l and gs_r
-
-
     def _fit_kernel(self, source, guess=None):
 
         """Fit the `mu` and `sigma` parameters of the gaussian (phase)
@@ -173,10 +159,10 @@ class BumpSource(sncosmo.Source):
         self._phase = hsiao._phase
         self._wave = hsiao._wave
         self._passed_flux = hsiao._passed_flux
-        self._param_names = ['amplitude0', 'amplitude1', 's']
-        self.param_names_latex = ['A_0', 'A_1', 's']
-        self._parameters = np.array([1., 0., 1.])
-        self._model_flux = Spline2d(self._phase, self._wave, 
+        self._param_names = ['amplitude', 's']
+        self.param_names_latex = ['A', 's']
+        self._parameters = np.array([1., 1.])
+        self._model_flux = Spline2d(self._phase, self._wave,
                                     self._passed_flux, kx=2, ky=2)
         self.bumps = copy(self.BUMPS)
         
@@ -187,27 +173,14 @@ class BumpSource(sncosmo.Source):
             self.param_names_latex.append(bump.name + '_A')
 
     def minphase(self):
-        return self._parameters[2] * self._phase[0]
+        return self._parameters[1] * self._phase[0]
 
     def maxphase(self):
-        return self._parameters[2] * self._phase[-1]
+        return self._parameters[1] * self._phase[-1]
         
     def _flux(self, phase, wave):
-        mf = self._model_flux(phase / self._parameters[2], wave)
-        amp = (self._parameters[0] + self._parameters[1] * wave) 
-        if mf.ndim == 2:
-            amp = np.atleast_2d(amp)
-        f = mf * amp
+        mf = self._model_flux(phase / self._parameters[1], wave) * self._parameters[0]
         for i, bump in enumerate(self.bumps):
-            f *= (1 + self._parameters[i + 3] * \
-                  bump.kernel(phase / self._parameters[2], wave))
+            f *= (1 + self._parameters[i + 2] * \
+                  bump.kernel(phase / self._parameters[1], wave))
         return f
-    
-        
-                      
-                       
-class BumpModel(sncosmo.Model):
-    
-    def has_valid_params(self):
-        return not (self.source._passed_flux < -1e-24).any()
-        
