@@ -8,11 +8,11 @@ from bolomc import bump
 from bolomc import burns
 from bolomc.distributions import TruncNorm
 import glob
-from pymc import Matplot
+from bolomc import plotting
 
 from joblib import Parallel, delayed
 
-def task(filename):
+def task(filename, kind='mcmc'):
     
     lc = sncosmo.read_lc(filename, format='csp')
 
@@ -43,39 +43,45 @@ def task(filename):
 
     res, model = sncosmo.fit_lc(lc,model,['amplitude']+vparams,
                                 bounds=bounds)
+
+    bounds['t0'] = (model.get('t0')-2, model.get('t0')+2)
     
     vparams.append('amplitude')
     bounds['amplitude'] = (0.5 * model.get('amplitude'), 
                            2 * model.get('amplitude'))
 
+    if kind == 'mcmc':
 
-    result = sncosmo.mcmc_lc(lc, model, vparams, priors={'hostebv':ebv_prior,
-                                                         'hostr_v':rv_prior},
-                             bounds=bounds,
-                             nwalkers=500,
-                             nburn=1000,
-                             nsamples=20)
-    
-    samples = result[0].samples
-    vparams = result[0].vparam_names
-    dicts = [dict(zip(vparams, samp)) for samp in samples]
-    matplot_dict = dict(zip(vparams, samples.T))
+        result = sncosmo.mcmc_lc(lc, model, vparams, priors={'hostebv':ebv_prior,
+                                                             'hostr_v':rv_prior},
+                                 bounds=bounds,
+                                 nwalkers=500,
+                                 nburn=1000,
+                                 nsamples=20)
+        
+        samples = result[0].samples.reshape(500, 20, -1)
+        vparams = result[0].vparam_names
+        plot_arg = np.rollaxis(samples, 2)
+        plotting.plot_chains(plot_arg, param_names=vparams, 
+                             filename='fits/%s_samples.pdf' % lc.meta['name'])
 
-    Matplot.plot(matplot_dict, lc.meta['name'], 
-                 format='pdf', path='fits',
-                 common_scale=False)
+        dicts = [dict(zip(vparams, samp)) for samp in samples.reshape(500 * 20, -1)]
+        thinned = samples.reshape(500, 20, -1)[:, [0, -1]].reshape(1000, -1)
 
-    thinned = samples.reshape(500, 20, -1)[:, [0, -1]].reshape(1000, -1)
+        models = [copy(result[1]) for i in range(len(thinned))]
+        for d, m in zip(dicts, models):
+            m.set(**d)
 
-    models = [copy(result[1]) for i in range(len(thinned))]
-    for d, m in zip(dicts, models):
-        m.set(**d)
+        fig = sncosmo.plot_lc(data=lc, model=models, ci=(50-68/2., 50., 50+68/2.))
+        fig.savefig('fits/%s.pdf' % lc.meta['name'])
+        
+    else:
+        
+        fitres, model = sncosmo.fit_lc(lc, model, vparams)
+        fig = sncosmo.plot_lc(data=lc, model=model)
+        fig.savefig('fits/%s_fit.pdf' % lc.meta['name'])
 
-    fig = sncosmo.plot_lc(data=lc, model=models, ci=(50-68/2., 50., 50+68/2.))
-    fig.savefig('fits/%s.pdf' % lc.meta['name'])
-    
-    
 
-
-lc_files = glob.glob('../data/CSP_Photometry_DR2/*.dat')[40:70]
-Parallel(n_jobs=len(lc_files))(delayed(task)(f) for f in lc_files)
+if __name__ == '__main__':
+    lc_files = glob.glob('../data/CSP_Photometry_DR2/*.dat')
+    Parallel(n_jobs=1)(delayed(task)(f) for f in lc_files if '2005eq' in f)
