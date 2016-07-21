@@ -65,7 +65,7 @@ def get_mwebv(name):
     err = float(right)
     return ebmv, err
 
-def get_hostrv_prior(name, rv_bintype, dust_type):
+def get_hostrv_prior(name, rv_bintype, dust_type, retlims=False):
     row = _search_row(name)
     token = row[_index[(dust_type, rv_bintype)]]
     
@@ -83,7 +83,7 @@ def get_hostrv_prior(name, rv_bintype, dust_type):
 
         # TODO: implement asymmetric priors
         dist = TruncNorm(0, np.inf, mean, avg_unc)
-    return dist
+    return dist if not retlims else (dist, low, high)
 
 def get_t0(name):
     """Return the date of B-band maximum for SN `name` estimated from a
