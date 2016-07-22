@@ -61,16 +61,12 @@ def task(filename, i, j, nrv, nebv, kind='mcmc'):
     if kind != 'fit':
         if kind == 'mcmc':
             result = sncosmo.mcmc_lc(lc, model, vparams,
-                                     priors={'hostebv':ebv_prior,
-                                             'hostr_v':rv_prior},
                                      bounds=bounds,
                                      nwalkers=500,
                                      nburn=1000,
                                      nsamples=20)
         elif kind == 'nest':
             result = sncosmo.nest_lc(lc, model, vparams, bounds=bounds,
-                                     priors={'hostebv':ebv_prior,
-                                             'hostr_v':rv_prior},
                                      method='multi', npoints=800)
 
         samples = result[0].samples.reshape(500*4, 20, -1)
