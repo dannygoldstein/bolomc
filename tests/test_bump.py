@@ -105,4 +105,4 @@ if __name__ == '__main__':
     nrv = 5
     for f in lc_files:
         if 'SN2005eq' in f:
-            Parallel(n_jobs=nebv*nrv)(delayed(task)(f, i=i, j=j, nrv, nebv) for i in range(nrv) for j in range(nebv))
+            Parallel(n_jobs=nebv*nrv)(delayed(task)(f, i, j, nrv, nebv) for i in range(nrv) for j in range(nebv))
