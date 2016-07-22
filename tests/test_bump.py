@@ -9,7 +9,7 @@ from bolomc import burns
 from bolomc.distributions import TruncNorm
 import glob
 from bolomc import plotting
-
+import pickle
 from joblib import Parallel, delayed
 
 def task(filename, i, j, nrv, nebv, kind='mcmc'):
@@ -32,8 +32,10 @@ def task(filename, i, j, nrv, nebv, kind='mcmc'):
                                                  retlims=True)
     host_ebv, err = burns.get_hostebv(lc.meta['name'])
     
-    rv = np.linspace(low, high, nrv)[i]
-    ebv = np.linspace(host_ebv - err, host_ebv + err, nebv)[j]
+    rv = np.linspace(low if low >= 0 else 0, high, nrv)[i]
+    ebvlo = host_ebv - err
+    ebvhi = host_ebv + err
+    ebv = np.linspace(ebvlo if ebvlo >= 0 else 0, ebvhi, nebv)[j]
 
     model.set(z=lc.meta['zcmb'])
     model.set(mwebv=burns.get_mwebv(lc.meta['name'])[0])
@@ -71,7 +73,7 @@ def task(filename, i, j, nrv, nebv, kind='mcmc'):
             result = sncosmo.nest_lc(lc, model, vparams, bounds=bounds,
                                      method='multi', npoints=800)
 
-        samples = result[0].samples.reshape(500*4, 20, -1)
+        samples = result[0].samples.reshape(500, 20, -1)
         vparams = result[0].vparam_names
         plot_arg = np.rollaxis(samples, 2)
 
@@ -81,11 +83,14 @@ def task(filename, i, j, nrv, nebv, kind='mcmc'):
         dicts = [dict(zip(vparams, samp)) for samp in samples.reshape(500 * 20, -1)]
         thinned = samples.reshape(500, 20, -1)[:, [0, -1]].reshape(1000, -1)
 
+        pickle.dump(samples, open('fits/samples_%s.pkl' % qualifier, 'wb'))
+
         models = [copy(result[1]) for i in range(len(thinned))]
         for d, m in zip(dicts, models):
             m.set(**d)
 
-        fig = sncosmo.plot_lc(data=lc, model=models, ci=(50-68/2., 50., 50+68/2.))
+        fig = sncosmo.plot_lc(data=lc, model=models, ci=(50-68/2., 50., 50+68/2.),
+                              model_label=lc.meta['name'])
         fig.savefig('fits/%s%s.pdf' % (lc.meta['name'], qualifier))
         
     else:
@@ -101,4 +106,5 @@ if __name__ == '__main__':
     nrv = 5
     for f in lc_files:
         if 'SN2005eq' in f:
-            Parallel(n_jobs=nebv*nrv)(delayed(task)(f, i, j, nrv, nebv, kind='fit') for i in range(nrv) for j in range(nebv))
+            Parallel(n_jobs=nebv*nrv)(delayed(task)(f, i, j, nrv, nebv, kind='mcmc') 
+                                      for i in range(nrv) for j in range(nebv))
