@@ -58,6 +58,8 @@ def task(filename, i, j, nrv, nebv, kind='mcmc'):
     bounds['amplitude'] = (0.5 * model.get('amplitude'),
                            2 * model.get('amplitude'))
 
+    qualifier = '_ebv_%.2f_rv_%.2f' % (ebv, rv)
+
     if kind != 'fit':
         if kind == 'mcmc':
             result = sncosmo.mcmc_lc(lc, model, vparams,
@@ -72,8 +74,6 @@ def task(filename, i, j, nrv, nebv, kind='mcmc'):
         samples = result[0].samples.reshape(500*4, 20, -1)
         vparams = result[0].vparam_names
         plot_arg = np.rollaxis(samples, 2)
-
-        qualifier = '_ebv_%.2f_rv_%.2f' % (ebv, rv)
 
         plotting.plot_chains(plot_arg, param_names=vparams, 
                              filename='fits/%s_samples%s.pdf' % (lc.meta['name'], qualifier))
@@ -101,4 +101,4 @@ if __name__ == '__main__':
     nrv = 5
     for f in lc_files:
         if 'SN2005eq' in f:
-            Parallel(n_jobs=nebv*nrv)(delayed(task)(f, i, j, nrv, nebv) for i in range(nrv) for j in range(nebv))
+            Parallel(n_jobs=nebv*nrv)(delayed(task)(f, i, j, nrv, nebv, kind='fit') for i in range(nrv) for j in range(nebv))
