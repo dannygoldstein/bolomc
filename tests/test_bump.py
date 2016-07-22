@@ -76,8 +76,11 @@ def task(filename, i, j, nrv, nebv, kind='mcmc'):
         samples = result[0].samples.reshape(500*4, 20, -1)
         vparams = result[0].vparam_names
         plot_arg = np.rollaxis(samples, 2)
+
+        qualifier = '_ebv_%.2f_rv_%.2f' % (ebv, rv)
+
         plotting.plot_chains(plot_arg, param_names=vparams, 
-                             filename='fits/%s_samples.pdf' % lc.meta['name'])
+                             filename='fits/%s_samples%s.pdf' % (lc.meta['name'], qualifier))
 
         dicts = [dict(zip(vparams, samp)) for samp in samples.reshape(500 * 20, -1)]
         thinned = samples.reshape(500, 20, -1)[:, [0, -1]].reshape(1000, -1)
@@ -87,13 +90,13 @@ def task(filename, i, j, nrv, nebv, kind='mcmc'):
             m.set(**d)
 
         fig = sncosmo.plot_lc(data=lc, model=models, ci=(50-68/2., 50., 50+68/2.))
-        fig.savefig('fits/%s.pdf' % lc.meta['name'])
+        fig.savefig('fits/%s%s.pdf' % (lc.meta['name'], qualifier))
         
     else:
         
         fitres, model = sncosmo.fit_lc(lc, model, vparams, bounds=bounds)
         fig = sncosmo.plot_lc(data=lc, model=model)
-        fig.savefig('fits/%s_fit.pdf' % lc.meta['name'])
+        fig.savefig('fits/%s_fit%s.pdf' % (lc.meta['name'], qualifier))
 
 
 if __name__ == '__main__':
@@ -101,5 +104,5 @@ if __name__ == '__main__':
     nebv = 5
     nrv = 5
     for f in lc_files:
-        lc = sncosmo.read_lc(filename, format='csp')
-        Parallel(n_jobs=N)(delayed(task)(f, i=i, j=j, nrv, nebv) for i in range(nrv) for j in range(nebv))
+        if 'SN2005eq' in f:
+            Parallel(n_jobs=nebv*nrv)(delayed(task)(f, i=i, j=j, nrv, nebv) for i in range(nrv) for j in range(nebv))
