@@ -8,7 +8,7 @@ import numpy as np
 from itertools import chain
 from astropy.cosmology import Planck13
 
-vparams = ['t0', 's', 'amplitude', 'UV_bump_amp', 'blue_bump_amp', 'i1_bump_amp', 'i2_bump_amp',
+vparams = ['t0', 'amplitude', 's', 'UV_bump_amp', 'blue_bump_amp', 'i1_bump_amp', 'i2_bump_amp',
            'y1_bump_amp', 'y2_bump_amp', 'y3_bump_amp', 'j1_bump_amp',
            'j2_bump_amp', 'j3_bump_amp', 'h1_bump_amp', 'h2_bump_amp',
            'h3_bump_amp', 'k1_bump_amp', 'k2_bump_amp']
