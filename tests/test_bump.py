@@ -83,7 +83,7 @@ def task(filename, i, j, nrv, nebv, kind='mcmc'):
         dicts = [dict(zip(vparams, samp)) for samp in samples.reshape(500 * 20, -1)]
         thinned = samples.reshape(500, 20, -1)[:, [0, -1]].reshape(1000, -1)
 
-        pickle.dump(samples, open('fits/samples_%s.pkl' % qualifier, 'wb'))
+        pickle.dump(samples, open('fits/%s_samples%s.pkl' % (lc.meta['name'], qualifier), 'wb'))
 
         models = [copy(result[1]) for i in range(len(thinned))]
         for d, m in zip(dicts, models):
