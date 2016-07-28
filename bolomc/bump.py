@@ -4,7 +4,7 @@ from scipy.optimize import fmin_l_bfgs_b, minimize
 from scipy.interpolate import (RectBivariateSpline as Spline2d,
                                interp1d)
 from copy import copy
-from astropy.cosmology import Planck13
+
 
 __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Subclass of sncosmo.Model that implements ' \
@@ -186,43 +186,5 @@ class BumpSource(sncosmo.Source):
                   bump.kernel(phase / self._parameters[1], wave))
         return f
 
-    def bolometric(self, phase, luminosity=True):
-        flux = (self.flux(phase, self._wave) * np.gradient(self._wave)).sum(1)
-        if luminosity:
-            z = self.get('z')
-            dl = Planck13.luminosity_distance(z).to('cm').value
-            L = 4 * np.pi * flux * dl * dl
-            return L
-        return flux
-
-    def Lfunc(self):
-        y = self.bolometric(self._phase, compute_luminosity=True)
-        func = interp1d(x, y, kind='cubic')
-        return func
-        
-    def tpeak(self, retfunc=False):
-        func = self.Lfunc()
-        
-        def minfunc(t):
-            # objective function
-            try:
-                return -func(t) / 1e43
-            except ValueError:
-                return np.inf
-    
-        res = minimize(minfunc, 0.)
-        if not res.success:
-            raise RuntimeError(res.message)
-        return res.x if not retfunc else (res.x, func)
-
-    def Lpeak(self):
-        tpeak, func = self.tpeak(retfunc=True)
-        return func(tpeak)
-    
-    def dm15(self):
-        tpeak, func = self.tpeak(params, retfunc=True)
-        lpeak = func(tpeak)
-        l15 = func(tpeak + 15)
-        return 2.5 * np.log10(lpeak / l15)
 
     
