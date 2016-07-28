@@ -114,5 +114,8 @@ if __name__ == '__main__':
     bolos = [bolometric(mod) for mod in mods]
     stack = bolo.LCStack(mod.source._phase, bolos)
     ax = stack.plot()
+    m2 = sncosmo.Model(sncosmo.get_source('hsiao'))
+    m2.set(z=mod.get('z'), amplitude=mod.get('amplitude'))
+    ax.plot(m2.source._phase, bolometric(m2), ls='--')
     ax.figure.savefig('combined.pdf')
     
