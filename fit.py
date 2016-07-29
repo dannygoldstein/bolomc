@@ -1,9 +1,10 @@
 import sys
 import yaml
 import numpy as np
-from copy import copy
+import pandas as pd
 from mpi4py import MPI
 from bolomc import bump, burns
+
 
 # Initialize MPI. 
 comm = MPI.COMM_WORLD
@@ -46,10 +47,10 @@ my_jobs = _split(total_grid, size)[rank]
 
 if len(my_jobs) == 0:
     result = None  # this processor will be idle
-    names = None
+    param_names = None
 else:
     result = []
-    names = []
+    param_names = []
     for job in my_jobs:
         r_v, ebv = job
 
@@ -64,7 +65,7 @@ else:
         model.set(mwebv=burns.get_mwebv(name)[0])
         model.set(hostebv=ebv)
         model.set(hostr_v=r_v)
-        model.set(t0=burns.get_t0(namef))
+        model.set(t0=burns.get_t0(name))
 
         # Identify parameters to vary in the fit.
         vparams = filter(lambda x: 'bump' in x, model._param_names)
@@ -91,22 +92,42 @@ else:
                                           nburn=config['nburn'],
                                           nsamples=config['nsamples'])
 
-        # 
+        # Represent results as a list of dictionaries mapping
+        # parameter names to parameter values. Ultimately, we want all
+        # of the model parameters, including the ones that do not
+        # vary, as a big numpy array. In order to do that we will
+        # access the `parameters` attribute of the 
+        
         pdicts = [dict(zip(vparams, sample)) for sample in samples]
+
+        # Aggregate all of the parameters, including the ones that do
+        # not vary.
+        
         parameters = []
         for d in pdicts:
             fitmod.set(**d)
             parameters.append(fitmod.parameters)
         result.append(np.asarray(parameters))
+        param_names.append(fitmod._param_names)
+       
     result = np.vstack(result)
-    names = np.vstack(names)
-    
+    param_names = np.vstack(param_names)
+
+# Send everything to the master process.     
 gathered = comm.gather(result, root=0)
-names_gathered = comm.gather(names, root=0)
+pnames_gathered = comm.gather(param_names, root=0)
 
 if rank == 0:
+    # with the results gathered from everyone, write the aggregate to
+    # a file
+    
     ffunc = lambda a: a is not None
     samples = np.vstack(filter(ffunc, gathered))
-    names = np.vstack(filter(ffunc, names_gathered))
-    if not (names == names[0]).all():
-        raise Exception(
+    param_names = np.vstack(filter(ffunc, pnames_gathered))
+
+    # Ensure all names are the same.
+    if not (param_names == param_names[0]).all():
+        raise Exception("Inter-run model parameter names are inconsistent.")
+
+    df = pd.DataFrame(data=samples, columns=param_names)
+    df.to_records(index=False).to_pickle(config['outfile_name'])
