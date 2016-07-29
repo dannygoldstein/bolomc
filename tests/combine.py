@@ -116,6 +116,8 @@ if __name__ == '__main__':
     ax = stack.plot()
     m2 = sncosmo.Model(sncosmo.get_source('hsiao'))
     m2.set(z=mod.get('z'), amplitude=mod.get('amplitude'))
+    m3 = copy(mod)
+    m3.set(**{p:0 for p in m3._param_names if 'bump' in p})
     ax.plot(m2.source._phase, bolometric(m2), ls='--')
+    ax.plot(m3.source._phase, bolometric(m3), ls='-.')
     ax.figure.savefig('combined.pdf')
-    
