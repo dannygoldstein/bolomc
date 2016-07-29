@@ -49,6 +49,7 @@ if len(my_jobs) == 0:
     names = None
 else:
     result = []
+    names = []
     for job in my_jobs:
         r_v, ebv = job
 
@@ -57,55 +58,55 @@ else:
                               effect_names=['host','mw'],
                               effect_frames=['rest','obs'],
                               effects=[dust_type(), sncosmo.F99Dust()])
+        names.append(model._param_names)
 
         model.set(z=lc.meta['zcmb'])
         model.set(mwebv=burns.get_mwebv(name)[0])
         model.set(hostebv=ebv)
         model.set(hostr_v=r_v)
-        model.set(t0=burns.get_t0(lc.meta['name']))
-        
-        # prepare for initial fit. 
+        model.set(t0=burns.get_t0(namef))
+
+        # Identify parameters to vary in the fit.
         vparams = filter(lambda x: 'bump' in x, model._param_names)
         vparams += ['t0', 's', 'amplitude']
 
+        # Set boundaries on the parameters to vary.
         bounds = {b.name + "_bump_amp":(-1,2) for b in 
                   model.source.bumps}
         bounds['s'] = (0, 3.)
 
-        res, model = sncosmo.fit_lc(lc,model,['amplitude']+vparams,
-                                    bounds=bounds)
+        # Get an idea of where the mode of the posterior is by doing
+        # an MLE fit.
+        res, model = sncosmo.fit_lc(lc, model, vparams,bounds=bounds)
 
-        bounds['t0'] = (model.get('t0')-2, model.get('t0')+2)
-        bounds['amplitude'] = (0.5 * model.get('amplitude'),
+        # Add bounds for MCMC fit.
+        bounds['t0'] = (model.get('t0') - 2, model.get('t0') + 2)
+        bounds['amplitude'] = (0.5 * model.get('amplitude'), 
                                2 * model.get('amplitude'))
 
-        qualifier = '_ebv_%.2f_rv_%.2f' % (ebv, r_v)
-
+        # Do MCMC.
         samples, fitmod = sncosmo.mcmc_lc(lc, model, vparams,
                                           bounds=bounds,
                                           nwalkers=config['nwalkers'],
                                           nburn=config['nburn'],
                                           nsamples=config['nsamples'])
 
-        models = [copy(fitmod) for sample in samples]
+        # 
         pdicts = [dict(zip(vparams, sample)) for sample in samples]
-        for m, d in zip(models, pdicts):
-            m.set(**d)
-        
-        
+        parameters = []
+        for d in pdicts:
+            fitmod.set(**d)
+            parameters.append(fitmod.parameters)
+        result.append(np.asarray(parameters))
     result = np.vstack(result)
-    mods = []
-    for samp in results:
-        
-    names = model._param_names
-    
-    
+    names = np.vstack(names)
     
 gathered = comm.gather(result, root=0)
-names = comm.gather(names, root=0)
+names_gathered = comm.gather(names, root=0)
 
 if rank == 0:
-    samples = np.vstack(filter(lambda a: a is not None, gathered))
-    names = 
-    
-    
+    ffunc = lambda a: a is not None
+    samples = np.vstack(filter(ffunc, gathered))
+    names = np.vstack(filter(ffunc, names_gathered))
+    if not (names == names[0]).all():
+        raise Exception(
