@@ -1,12 +1,13 @@
 #!/bin/bash
 
-#PBS -q debug
-#PBS -l mppwidth=24
-#PBS -l walltime=00:30:00
-#PBS -N MAKE_BOLOMETRIC
+#SBATCH -p debug 
+#SBATCH -t 00:30:00
+#SBATCH -N 24
+#SBATCH -J MAKE_BOLOMETRIC
+#SBATCH -L scratch1
 
 module load python/2.7-anaconda
-aprun -n 24 python-mpi fit.py xx.yml
+srun -n 24 python-mpi fit.py xx.yml
 
 
 
