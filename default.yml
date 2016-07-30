@@ -1,0 +1,11 @@
+lc_filename: _LCF_
+outfile_name: _OFN_
+
+dust_type: od94
+burns_bintype: gmm
+nrv: 4
+nebv: 6
+
+nwalkers: 200
+nburn: 1000
+nsamples: 20
