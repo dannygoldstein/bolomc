@@ -1,5 +1,6 @@
 import sys
 import yaml
+import sncosmo
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
@@ -20,14 +21,14 @@ f99 = sncosmo.F99Dust
 
 # Load the run configuration file. 
 config_filename = sys.argv[1]
-config = yaml.load(config_filename)
+config = yaml.load(open(config_filename).read())
 
 # Read the LC to fit. 
 lc = sncosmo.read_lc(config['lc_filename'], format='csp')
 name = lc.meta['name']
 
 # Configure the properties of the host galaxy dust.
-dust_type = od94 if config['dust_type'] == 'OD94' else f99
+dust_type = od94 if config['dust_type'] == 'od94' else f99
 bintype = config['burns_bintype']
 
 # Get the host galaxy dust data.
@@ -40,7 +41,7 @@ ebvhi = host_ebv + err
 # Do ebv / r_v gridding. 
 nrv = config['nrv']
 nebv = config['nebv']
-rv_grid = np.linspace(rv_low if rv_low >= 0 else 0, rv_high, nrv)
+rv_grid = np.linspace(rv_low if rv_low >= 0 else 0, rv_hi, nrv)
 ebv_grid = np.linspace(ebvlo if ebvlo >= 0 else 0, ebvhi, nebv)
 total_grid = [(rv, ebv) for rv in rv_grid for ebv in ebv_grid]
 my_jobs = _split(total_grid, size)[rank]
@@ -59,7 +60,7 @@ else:
                               effect_names=['host','mw'],
                               effect_frames=['rest','obs'],
                               effects=[dust_type(), sncosmo.F99Dust()])
-        names.append(model._param_names)
+        param_names.append(model._param_names)
 
         model.set(z=lc.meta['zcmb'])
         model.set(mwebv=burns.get_mwebv(name)[0])
@@ -78,7 +79,7 @@ else:
 
         # Get an idea of where the mode of the posterior is by doing
         # an MLE fit.
-        res, model = sncosmo.fit_lc(lc, model, vparams,bounds=bounds)
+        res, model = sncosmo.fit_lc(lc, model, vparams, bounds=bounds)
 
         # Add bounds for MCMC fit.
         bounds['t0'] = (model.get('t0') - 2, model.get('t0') + 2)
@@ -86,19 +87,21 @@ else:
                                2 * model.get('amplitude'))
 
         # Do MCMC.
-        samples, fitmod = sncosmo.mcmc_lc(lc, model, vparams,
-                                          bounds=bounds,
-                                          nwalkers=config['nwalkers'],
-                                          nburn=config['nburn'],
-                                          nsamples=config['nsamples'])
+        fres, fitmod = sncosmo.mcmc_lc(lc, model, vparams,
+                                       bounds=bounds,
+                                       nwalkers=config['nwalkers'],
+                                       nburn=config['nburn'],
+                                       nsamples=config['nsamples'],
+                                       guess_t0=False, guess_amplitude=False)
+        samples = fres.samples
 
         # Represent results as a list of dictionaries mapping
         # parameter names to parameter values. Ultimately, we want all
         # of the model parameters, including the ones that do not
         # vary, as a big numpy array. In order to do that we will
-        # access the `parameters` attribute of the 
+        # access the `parameters` attribute of the
         
-        pdicts = [dict(zip(vparams, sample)) for sample in samples]
+        pdicts = [dict(zip(fres.vparam_names, sample)) for sample in samples]
 
         # Aggregate all of the parameters, including the ones that do
         # not vary.
