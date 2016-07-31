@@ -10,12 +10,12 @@ except:
     pass
 
 files = map(os.path.abspath, glob.glob('data/CSP_Photometry_DR2/*'))
-yaml = open('default.yml').read()
+yaml_base = open('default.yml').read()
 sub = open('edison.sh').read()
 
 for file in files:
     name = file.split('/')[-1].split('opt')[0]
-    yaml = yaml.replace('_LCF_', file)
+    yaml = yaml_base.replace('_LCF_', file)
     yaml = yaml.replace('_OFN_', os.path.abspath('run/' + name + '.out'))
     yname = os.path.abspath('run/%s.yml' % name)
     

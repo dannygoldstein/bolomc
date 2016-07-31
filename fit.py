@@ -1,6 +1,7 @@
 import sys
 import yaml
 import sncosmo
+import pickle
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
@@ -132,5 +133,5 @@ if rank == 0:
     if not (param_names == param_names[0]).all():
         raise Exception("Inter-run model parameter names are inconsistent.")
 
-    df = pd.DataFrame(data=samples, columns=param_names)
-    df.to_records(index=False).to_pickle(config['outfile_name'])
+    df = pd.DataFrame(data=samples, columns=param_names[0])
+    pickle.dump(df.to_records(index=False), open(config['outfile_name'], 'wb'))
