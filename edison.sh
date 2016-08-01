@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH -p debug 
-#SBATCH -t 00:30:00
+#SBATCH -p regular
+#SBATCH -t 12:00:00
 #SBATCH -N 24
-#SBATCH -J MAKE_BOLOMETRIC
-#SBATCH -L scratch1
+#SBATCH -J JOBNAME
+#SBATCH -L SCRATCH
+#SBATCH --mail-type=ALL
+#SBATCH -A m1400
+#SBATCH -e JOBNAME.e
+#SBATCH -o JOBNAME.o
 
-module load python/2.7-anaconda
-srun -n 24 python-mpi fit.py xx.yml
-
-
-
+srun -n 24 python fit.py xx.yml

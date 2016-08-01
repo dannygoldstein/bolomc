@@ -22,7 +22,9 @@ for file in files:
     with open(yname, 'w') as f:
         f.write(yaml)
     with open('run/%s.sh' % name, 'w') as f:
-        f.write(sub.replace('xx.yml', yname).replace('fit.py', os.path.abspath('fit.py')))
+        f.write(sub.replace('xx.yml', yname)\
+                   .replace('fit.py', os.path.abspath('fit.py'))\
+                   .replace('JOBNAME', name))
         
         
         
