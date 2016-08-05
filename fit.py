@@ -134,4 +134,5 @@ if rank == 0:
         raise Exception("Inter-run model parameter names are inconsistent.")
 
     df = pd.DataFrame(data=samples, columns=param_names[0])
-    pickle.dump(df.to_records(index=False), open(config['outfile_name'], 'wb'))
+    pickle.dump((lc, config, df.to_records(index=False)), 
+                open(config['outfile_name'], 'wb'))
