@@ -21,6 +21,7 @@ def bolometric(model, luminosity=True):
     return flux
 
 def Lfunc(model):
+    x = model.source._phase
     y = bolometric(model)
     func = interp1d(x, y, kind='cubic')
     return func
@@ -41,13 +42,13 @@ def tpeak(model, retfunc=False):
     return res.x if not retfunc else (res.x, func)
 
 def Lpeak(model):
-    tpeak, func = tpeak(model, retfunc=True)
-    return func(tpeak)
+    tp, func = tpeak(model, retfunc=True)
+    return func(tp)
 
 def dm15(model):
-    tpeak, func = tpeak(model, retfunc=True)
-    lpeak = func(tpeak)
-    l15 = func(tpeak + 15)
+    tp, func = tpeak(model, retfunc=True)
+    lpeak = func(tp)
+    l15 = func(tp + 15)
     return 2.5 * np.log10(lpeak / l15)
 
 
