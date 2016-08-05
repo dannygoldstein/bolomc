@@ -11,6 +11,7 @@ __whatami__ = 'Light curve plotting utilities.'
 
 def bolometric(model, luminosity=True):
     phase = model.source._phase
+    dwave = np.gradient(model.source._wave)
     flux = np.sum(model.source.flux(phase, model.source._wave) * dwave, axis=1)
     if luminosity:
         z = model.get('z')
@@ -56,7 +57,7 @@ class LCStack(object):
     def from_models(cls, models, name=None):
         # check to see if all models have the same phase grid
         phase0 = models[0].source._phase
-        if not all([m._phase == phase[0] for m in models]):
+        if not np.all([m.source._phase == phase0 for m in models]):
             raise ValueError("all models need to have the same phase grid.")
 
         # make the light curves

@@ -12,7 +12,7 @@ __whatami__ = 'Subclass of sncosmo.Model that implements ' \
 
 
 def bump_model(dust_type):
-    model = sncosmo.Model(bump.BumpSource(),
+    model = sncosmo.Model(BumpSource(),
                           effect_names=['host','mw'],
                           effect_frames=['rest','obs'],
                           effects=[dust_type(), sncosmo.F99Dust()])
