@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -p regular
-#SBATCH -t 12:00:00
+#SBATCH -t 03:00:00
 #SBATCH -N 24
 #SBATCH -J JOBNAME
 #SBATCH -L SCRATCH
