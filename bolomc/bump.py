@@ -10,6 +10,15 @@ __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Subclass of sncosmo.Model that implements ' \
               'warping with kernels.'
 
+
+def bump_model(dust_type):
+    model = sncosmo.Model(bump.BumpSource(),
+                          effect_names=['host','mw'],
+                          effect_frames=['rest','obs'],
+                          effects=[dust_type(), sncosmo.F99Dust()])
+    return model
+
+
 class SmoothTophat(object):
     """A callable one-dimensional smooth tophat function with steepness
     parameter k.

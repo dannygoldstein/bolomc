@@ -1,29 +1,69 @@
+import h5py
+import numpy as np
+import sncosmo
+from astropy.cosmology import Planck13
+from scipy.optimize import minimize
+from scipy.interpolate import interp1d
 
 __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Light curve plotting utilities.'
 
-import h5py
-import numpy as np
-import sncosmo
+
+def bolometric(model, luminosity=True):
+    phase = model.source._phase
+    flux = np.sum(model.source.flux(phase, model.source._wave) * dwave, axis=1)
+    if luminosity:
+        z = model.get('z')
+        dl = Planck13.luminosity_distance(z).to('cm').value
+        L = 4 * np.pi * flux * dl * dl
+        return L
+    return flux
+
+def Lfunc(model):
+    y = bolometric(model)
+    func = interp1d(x, y, kind='cubic')
+    return func
+
+def tpeak(model, retfunc=False):
+    func = Lfunc(model)
+
+    def minfunc(t):
+        # objective function
+        try:
+            return -func(t) / 1e43
+        except ValueError:
+            return np.inf
+
+    res = minimize(minfunc, 0.)
+    if not res.success:
+        raise RuntimeError(res.message)
+    return res.x if not retfunc else (res.x, func)
+
+def Lpeak(model):
+    tpeak, func = tpeak(model, retfunc=True)
+    return func(tpeak)
+
+def dm15(model):
+    tpeak, func = tpeak(model, retfunc=True)
+    lpeak = func(tpeak)
+    l15 = func(tpeak + 15)
+    return 2.5 * np.log10(lpeak / l15)
+
 
 class LCStack(object):
     
     @classmethod
-    def from_hdf5(cls, f):
-        f = h5py.File(f)
-        if f['current_stage'][()]:
-            try:
-                L = np.vstack(f['samples']['bolo'][[0, 49]])
-            except:
-                i = f['samples']['last_index_filled'][()]
-                L = f['samples']['bolo'][i]
-        else:
-            i = f['burn']['last_index_filled'][()]
-            L = f['burn']['bolo'][i]
+    def from_models(cls, models, name=None):
+        # check to see if all models have the same phase grid
+        phase0 = models[0].source._phase
+        if not all([m._phase == phase[0] for m in models]):
+            raise ValueError("all models need to have the same phase grid.")
 
-        # for now
-        phase = sncosmo.get_source('hsiao')._phase
-        return cls(phase, L)
+        # make the light curves
+        bolos = map(bolometric, models)
+
+        # return the LCStack
+        return cls(phase0, bolos, name=name)
 
     def __init__(self, phase, L, name=None):
         self.phase = phase

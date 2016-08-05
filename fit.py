@@ -7,6 +7,9 @@ import pandas as pd
 from mpi4py import MPI
 from bolomc import bump, burns
 
+__whatami__ = "Construct a bolometric light curve from CSP data."
+__author__ = "Danny Goldstein <dgold@berkeley.edu>"
+
 
 # Initialize MPI. 
 comm = MPI.COMM_WORLD
@@ -57,10 +60,7 @@ else:
         r_v, ebv = job
 
         # Create model. 
-        model = sncosmo.Model(bump.BumpSource(),
-                              effect_names=['host','mw'],
-                              effect_frames=['rest','obs'],
-                              effects=[dust_type(), sncosmo.F99Dust()])
+        model = bump.bump_model(dust_type)
         param_names.append(model._param_names)
 
         model.set(z=lc.meta['zcmb'])
