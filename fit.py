@@ -4,6 +4,7 @@ import sncosmo
 import pickle
 import numpy as np
 import pandas as pd
+from copy import copy
 from mpi4py import MPI
 from bolomc import bump, burns
 
@@ -110,7 +111,7 @@ else:
         parameters = []
         for d in pdicts:
             fitmod.set(**d)
-            parameters.append(fitmod.parameters)
+            parameters.append(copy(fitmod.parameters))
         result.append(np.asarray(parameters))
         param_names.append(fitmod._param_names)
        
