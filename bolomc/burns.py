@@ -48,10 +48,17 @@ def get_hostebv(name):
     Burns+2014."""
     row = _search_row(name)
     token = row[5]
-    left, right = token.split('(')
-    right = right[:-1]
-    ebmv = float(left)
-    err = float(right)
+    try:
+        left, right = token.split('(')
+    except ValueError:
+        # E(B-V) is of the form <y 
+        # this makes a uniform prior 
+        # over 0 to y
+        ebmv = err = float(token[1:]) / 2
+    else:
+        right = right[:-1]
+        ebmv = float(left)
+        err = float(right)
     return ebmv, err
 
 def get_mwebv(name):
