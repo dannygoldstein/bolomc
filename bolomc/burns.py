@@ -82,6 +82,9 @@ def get_hostrv_prior(name, rv_bintype, dust_type, retlims=False):
     elif token.startswith('<'):
         lim = float(token[1:])
         dist = uniform(0., lim)
+        mean = lim / 2.
+        low = 0.
+        high = lim
     else:
         mean, lims = token.split('^')
         mean = float(mean)
