@@ -34,8 +34,11 @@ dm15e = []; Le = []
 gal = np.genfromtxt('data/gal.dat', delimiter='"')
 gals = []
 for (lc, config, models) in results:
-    tdm15 = map(bolo.dm15, models)
-    tL = map(bolo.Lpeak, models)
+    try: 
+        tdm15 = map(bolo.dm15, models)
+        tL = map(bolo.Lpeak, models)
+    except ValueError:
+        continue
     dm15.append(np.mean(tdm15))
     L.append(np.mean(tL))
     dm15e.append(np.std(tdm15))
