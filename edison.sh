@@ -2,7 +2,7 @@
 
 #SBATCH -p regular
 #SBATCH -t 03:00:00
-#SBATCH -N 24
+#SBATCH -N 1
 #SBATCH -J JOBNAME
 #SBATCH -L SCRATCH
 #SBATCH --mail-type=ALL
