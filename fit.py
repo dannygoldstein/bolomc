@@ -46,7 +46,7 @@ ebvhi = host_ebv + err
 # Do ebv / r_v gridding. 
 nrv = config['nrv']
 nebv = config['nebv']
-rv_grid = np.linspace(rv_low if rv_low >= 0 else 0, rv_hi, nrv)
+rv_grid = np.linspace(rv_low if rv_low >= .1 else .1, rv_hi, nrv)
 ebv_grid = np.linspace(ebvlo if ebvlo >= 0 else 0, ebvhi, nebv)
 total_grid = [(rv, ebv) for rv in rv_grid for ebv in ebv_grid]
 my_jobs = _split(total_grid, size)[rank]
