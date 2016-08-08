@@ -2,7 +2,7 @@
 # based on the CSP website http://csp.obs.carnegiescience.edu/data/lowzSNe/ during that time.
 # the t0 values are mjd dates of B-band maximum 
 # taken from SNooPy dm15 fits.
-name host_type
+name " host_type " 
 SN2004dt "  (R')SB(s)a"
 SN2004ef "  Sb"
 SN2004eo "  SB(s)ab"
