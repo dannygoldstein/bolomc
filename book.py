@@ -4,12 +4,71 @@ import glob
 import samples
 import numpy as np
 import sncosmo
+import pickle
 from bolomc import bolo
+from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from astropy.cosmology import Planck13
 
 files = glob.glob('run/*.out')
 results = map(samples.models, files)
+csp = sncosmo.get_magsystem('csp')
+fitres = np.genfromtxt('run/fitres.dat', names=True, dtype=None)
+
+# SNe that had fits that did not fail
+good = fitres[fitres['status'] == 'OK']['name']
+
+# keep only successful fits
+results = filter(lambda tup: tup[0].meta['name'] in good, 
+                 results)
+
+def wlr(x, y, cov, xlim=None, ylim=None, band='B'):
+    """Plot the width-luminosity relation."""
+
+    import seaborn as sns
+    sns.set_style('ticks')
+    fig, ax = plt.subplots()
+
+    xe = [np.sqrt(e[0,0]) for e in cov]
+    ye = [np.sqrt(e[1,1]) for e in cov]
+
+    ax.errorbar(x, y, xerr=xe, yerr=ye, capsize=0, color='k', 
+                linestyle='None')
+
+    ax.set_xlabel(r'$\Delta m_{15}(%s)$' % band)
+    ax.set_ylabel(r'$M_{\mathrm{abs}}(%s)$' % band)
+
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    ax.invert_yaxis()
+
+    z = np.asarray(zip(x, y))
+    sigma = cov 
+
+    def obj_func((m, b, V)):
+        theta = np.arctan(m)
+        v = np.asarray([-np.sin(theta), np.cos(theta)])
+        deltasq = (v.dot(z.T) - b * np.cos(theta))**2
+        sigmasq = np.asarray([v.dot(sig).dot(v) for sig in sigma])
+        return np.sum(deltasq / (sigmasq + V) + np.log(sigmasq + V))
+
+    res = minimize(obj_func, (.7, -20., 0.15**2))
+    x = np.linspace(.75, 1.75)
+    y = res.x[0] * x + res.x[1]
+
+    # show intrinsic scatter
+    off = np.sqrt(res.x[2]) / np.sin(np.arctan(res.x[0]))
+    ax.fill_between(x, y + off, y - off, color='r', alpha=0.2)
+    ax.plot(x, y, 'r')
+    sns.despine(ax=ax)
+    ax.set_title(r'$m=%.2f, b=%.2f, \sigma=%.2f$' % 
+                 (res.x[0], res.x[1], np.sqrt(res.x[2])))
+ 
+    return fig
+
 """
 # broadband book
 with PdfPages('phot.pdf') as pdf:
@@ -17,7 +76,8 @@ with PdfPages('phot.pdf') as pdf:
         fig = sncosmo.plot_lc(model=models, data=lc, ci=(2.5, 50., 97.5),
                               figtext=lc.meta['name'])
         pdf.savefig(fig)
-
+"""
+"""
 # bolometric book        
 with PdfPages('bolo.pdf') as pdf:
     from bolomc import bolo
@@ -25,54 +85,46 @@ with PdfPages('bolo.pdf') as pdf:
         stack = bolo.LCStack.from_models(models)
         ax = stack.plot()
         ax.set_title(lc.meta['name'])
+        ax.set_ylim(0, 2.5e43)
         pdf.savefig(ax.figure)
-"""
+
 # wlr plot
-fig, ax = plt.subplots()
-dm15 = []; L = []
-dm15e = []; Le = []
-gal = np.genfromtxt('data/gal.dat', delimiter='"')
-gals = []
+dm15 = []; M = []; cov = []
 for (lc, config, models) in results:
     try: 
-        tdm15 = map(bolo.dm15, models)
-        tL = map(bolo.Lpeak, models)
+        tdm15 = np.squeeze(map(bolo.dm15, models))
+        tL = np.squeeze(map(bolo.Lpeak, models))
+        # arbitrary zero point
+        tM = np.squeeze([-2.5 * np.log10(L) + 87.3 for L in tL])
+
     except ValueError:
         continue
     dm15.append(np.mean(tdm15))
-    L.append(np.mean(tL))
-    dm15e.append(np.std(tdm15))
-    Le.append(np.std(tL))
-    try:
-        gtype = gal[gal['name'] == lc.meta['name']]['host_type'][0]
-    except:
-        gtype = 'unknown'
-    else: 
-        gtype = 'S' if 'S' in gtype else 'E'
-    gals.append(gtype)
-gals = np.asarray(gals)
-for gtype in set(gals):
-    d = np.asarray(dm15)[gals==gtype]
-    l = np.asarray(L)[gals==gtype]
-    de = np.asarray(dm15e)[gals==gtype]
-    le = np.asarray(Le)[gals==gtype]
-    if 'S' == gtype:
-        color = 'blue'
-        label = 'spiral'
-    elif 'E' == gtype:
-        color = 'red'
-        label = 'elliptical'
-    else:
-        color = 'k'
-        label = 'unknown'
+    M.append(np.mean(tM))
+    cov.append(np.cov(zip(tdm15, tM), rowvar=False))
+fig = wlr(dm15, M, cov, band='bol')
+fig.savefig('wlr.pdf')
 
-    ax.errorbar(d, l, xerr=de, yerr=le, fmt='.', capsize=0, color=color,
-                label=label)
+"""
 
-ax.set_xlim(0.5, 1.5)
-ax.set_ylim(0.2e43, 2.2e43)
-ax.legend()
-import seaborn as sns
-sns.set_style('ticks')
-sns.despine(ax=ax)
-fig.savefig('wlr.pdf')    
+dm15 = []; M = []; cov = []
+for (lc, config, models) in results:
+    if lc.meta['name'] not in good:
+        continue
+    tdm15 = []
+    tM = []
+    for model in models:
+        peakmag = model.source_peakabsmag('cspb', csp, cosmo=Planck13)
+        peakphase = model.source.peakphase('cspb')
+        mag0 = model.source.bandmag('cspb', csp, peakphase)
+        mag15 = model.source.bandmag('cspb', csp, peakphase+15)
+        tdm15.append(mag15 - mag0)
+        tM.append(peakmag)
+    if np.mean(tdm15) < 2.:
+        dm15.append(np.mean(tdm15))
+        M.append(np.mean(tM))
+        cov.append(np.cov(zip(tdm15, tM), rowvar=False))
+
+fig = wlr(dm15, M, cov, xlim=(.75, 1.75), 
+          ylim=(-19.7, -18.4))
+fig.savefig('bbwlr.pdf')
