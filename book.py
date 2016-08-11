@@ -61,6 +61,7 @@ def wlr(x, y, cov, xlim=None, ylim=None, band='B'):
 
     # show intrinsic scatter
     off = np.sqrt(res.x[2]) / np.sin(np.arctan(res.x[0]))
+    ax.fill_between(x, y + 2*off, y - 2*off, color='r', alpha=0.1)
     ax.fill_between(x, y + off, y - off, color='r', alpha=0.2)
     ax.plot(x, y, 'r')
     sns.despine(ax=ax)
