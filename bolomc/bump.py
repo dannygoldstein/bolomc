@@ -187,13 +187,18 @@ class BumpSource(sncosmo.Source):
 
     def maxphase(self):
         return self._parameters[1] * self._phase[-1]
-        
+    
+    def _warp(self, phase, wave):
+        warp = 1.
+        for i, bump in enumerate(self.bumps):
+            warp *= (1 + self._parameters[i + 2] * \
+                         bump.kernel(phase / self._parameters[1], wave))
+        return warp
+
     def _flux(self, phase, wave):
         f = self._model_flux(phase / self._parameters[1], wave) * self._parameters[0]
-        for i, bump in enumerate(self.bumps):
-            f *= (1 + self._parameters[i + 2] * \
-                  bump.kernel(phase / self._parameters[1], wave))
-        return f
+        warp = self._warp(phase, wave)
+        return f * warp
 
 
     
