@@ -10,6 +10,8 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from astropy.cosmology import Planck13
+from scipy.stats import multivariate_normal, spearmanr
+
 
 files = glob.glob('run/*.out')
 results = map(samples.models, files)
@@ -22,6 +24,21 @@ good = fitres[fitres['status'] == 'OK']['name']
 # keep only successful fits
 results = filter(lambda tup: tup[0].meta['name'] in good, 
                  results)
+
+names = [result[0].meta['name'] for result in results]
+
+def mc_spearmanr(x, y, cov, N=1000):
+    mu = np.asarray(zip(x, y))
+    rs = list()
+    for i in range(N):
+        rvs = list()
+        for m, s in zip(mu, cov):
+            rv = multivariate_normal.rvs(mean=m, cov=s)
+            rvs.append(rv)
+        rvs = np.asarray(rvs)
+        rs.append(spearmanr(*rvs.T))
+    rs = np.asarray(rs)[:, 0]
+    return rs.mean(), rs.std()
 
 def wlr(x, y, cov, xlim=None, ylim=None, band='B'):
     """Plot the width-luminosity relation."""
@@ -55,7 +72,7 @@ def wlr(x, y, cov, xlim=None, ylim=None, band='B'):
         sigmasq = np.asarray([v.dot(sig).dot(v) for sig in sigma])
         return np.sum(deltasq / (sigmasq + V) + np.log(sigmasq + V))
 
-    res = minimize(obj_func, (.7, -20., 0.15**2))
+    res = minimize(obj_func, (0, -21., 0.3**2))
     x = np.linspace(.75, 1.75)
     y = res.x[0] * x + res.x[1]
 
@@ -89,6 +106,7 @@ with PdfPages('bolo.pdf') as pdf:
         ax.set_ylim(0, 2.5e43)
         pdf.savefig(ax.figure)
 
+
 # wlr plot
 dm15 = []; M = []; cov = []
 for (lc, config, models) in results:
@@ -103,9 +121,11 @@ for (lc, config, models) in results:
     dm15.append(np.mean(tdm15))
     M.append(np.mean(tM))
     cov.append(np.cov(zip(tdm15, tM), rowvar=False))
+pickle.dump((names, dm15, M, cov), open("bol.pkl",'wb'))
+#dm15, M, cov = pickle.load(open("bol.pkl",'rb'))
+print 'bolometric wlr spearman r: mean=%f, std=%f' % mc_spearmanr(dm15, M, cov)
 fig = wlr(dm15, M, cov, band='bol')
 fig.savefig('wlr.pdf')
-
 """
 
 dm15 = []; M = []; cov = []
@@ -126,6 +146,11 @@ for (lc, config, models) in results:
         M.append(np.mean(tM))
         cov.append(np.cov(zip(tdm15, tM), rowvar=False))
 
+pickle.dump((names, dm15, M, cov), open('B.pkl','wb'))
+
+#dm15, M, cov = pickle.load(open("B.pkl",'rb'))
+print 'b band wlr spearman r: mean=%f, std=%f' % mc_spearmanr(dm15, M, cov)
 fig = wlr(dm15, M, cov, xlim=(.75, 1.75), 
           ylim=(-19.7, -18.4))
 fig.savefig('bbwlr.pdf')
+
