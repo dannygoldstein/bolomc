@@ -137,8 +137,9 @@ for (lc, config, models) in results:
     for model in models:
         peakmag = model.source_peakabsmag('cspb', csp, cosmo=Planck13)
         peakphase = model.source.peakphase('cspb')
-        mag0 = model.source.bandmag('cspb', csp, peakphase)
-        mag15 = model.source.bandmag('cspb', csp, peakphase+15)
+        tp = model.get('t0') + (1 + model.get('z')) * peakphase
+        mag0 = model.bandmag('cspb', csp, tp)
+        mag15 = model.bandmag('cspb', csp, tp+15)
         tdm15.append(mag15 - mag0)
         tM.append(peakmag)
     if np.mean(tdm15) < 2.:
