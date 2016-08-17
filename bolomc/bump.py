@@ -145,12 +145,8 @@ class BumpSource(sncosmo.Source):
         Must have shape `(num_phases, num_disp)`.
     """
 
-    BUMPS = [Bump('UV', 1000., 3700., -7., 6),
-             #Bump('blue', 3500., 6900., -20, 20),
-             Bump('uvB', 3700., 4000., -20, 20),
-             Bump('B', 4000., 4900., -20, 20),
-             Bump('V', 4900., 5600., -20, 20),
-             Bump('r', 5600., 6900., -20, 20),
+    BUMPS = [Bump('UV', 1000., 3500., -7., 6),
+             Bump('blue', 3500., 6900., -20, 20),
              Bump('i1', 6900., 9000., -12, 15),
              Bump('i2', 6900., 9000., 20, 32),
              Bump('y1', 9000., 11200., -10, 6),
@@ -185,6 +181,10 @@ class BumpSource(sncosmo.Source):
             self._parameters = np.concatenate((self._parameters, [0.]))
             self._param_names.append(bump.name + '_bump_amp')
             self.param_names_latex.append(bump.name + '_A')
+            if bump.name == 'blue':
+                self._parameters = np.concatenate((self._parameters, [0.]))
+                self._param_names.append(bump.name + '_bump_slope')
+                self.param_names_latex.append(bump.name + '_s')
 
     def minphase(self):
         return self._parameters[1] * self._phase[0]
@@ -194,9 +194,14 @@ class BumpSource(sncosmo.Source):
     
     def _warp(self, phase, wave):
         warp = 1.
-        for i, bump in enumerate(self.bumps):
-            warp *= (1 + self._parameters[i + 2] * \
-                         bump.kernel(phase / self._parameters[1], wave))
+        for bump in self.bumps:
+            if bump.name != 'blue':
+                warp *= (1 + self.get(bump.name + '_bump_amp') * \
+                             bump.kernel(phase / self.get('s'), wave))
+            else:
+                warp *= (1 + (self.get(bump.name + '_bump_amp') + \
+                                  self.get(bump.name + '_bump_slope') * wave) * \
+                             bump.kernel(phase / self.get('s'), wave))
         return warp
 
     def _flux(self, phase, wave):
