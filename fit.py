@@ -81,7 +81,8 @@ else:
 
         # Get an idea of where the mode of the posterior is by doing
         # an MLE fit.
-        res, model = sncosmo.fit_lc(lc, model, vparams, bounds=bounds)
+        res, model = sncosmo.fit_lc(lc, model, vparams, bounds=bounds, 
+                                    mag=True)
 
         # Add bounds for MCMC fit.
         bounds['t0'] = (model.get('t0') - 2, model.get('t0') + 2)
@@ -94,7 +95,8 @@ else:
                                        nwalkers=config['nwalkers'],
                                        nburn=config['nburn'],
                                        nsamples=config['nsamples'],
-                                       guess_t0=False, guess_amplitude=False)
+                                       guess_t0=False, guess_amplitude=False,
+                                       mag=True)
         samples = fres.samples
 
         # Represent results as a list of dictionaries mapping
