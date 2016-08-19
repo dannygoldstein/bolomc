@@ -64,7 +64,7 @@ else:
         model = bump.bump_model(dust_type)
         param_names.append(model._param_names)
 
-        model.set(z=lc.meta['zcmb'])
+        model.set(z=lc.meta['zhelio'])
         model.set(mwebv=burns.get_mwebv(name)[0])
         model.set(hostebv=ebv)
         model.set(hostr_v=r_v)
