@@ -191,6 +191,7 @@ class BumpSource(sncosmo.Source):
 
         self._parameters = np.concatenate((self.parameters, [0.]))
         self._param_names += ['wave_slope']
+        self.param_names_latex.append('m_\lambda')
 
     def minphase(self):
         return self._parameters[1] * self._phase[0]
