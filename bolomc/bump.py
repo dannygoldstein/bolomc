@@ -203,7 +203,7 @@ class BumpSource(sncosmo.Source):
         for bump in self.bumps:
             warp *= (1 + self.get(bump.name + '_bump_amp') * \
                          bump.kernel(phase / self.get('s'), wave))
-        warp *= self.get('wave_slope') * linear_warp(phase, wave)
+        warp *= 1 + (self.get('wave_slope') * linear_warp(phase, wave))
         return warp
 
     def _flux(self, phase, wave):

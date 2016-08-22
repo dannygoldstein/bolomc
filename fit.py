@@ -71,7 +71,7 @@ else:
         model.set(t0=burns.get_t0(name))
 
         # Identify parameters to vary in the fit.
-        vparams = filter(lambda x: 'bump' in x, model._param_names)
+        vparams = filter(lambda x: 'bump' in x or 'slope' in x, model._param_names)
         vparams += ['t0', 's', 'amplitude']
 
         # Set boundaries on the parameters to vary.
