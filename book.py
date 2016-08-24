@@ -16,14 +16,17 @@ from scipy.stats import multivariate_normal, spearmanr
 files = glob.glob('run/*.out')
 results = map(samples.models, files)
 csp = sncosmo.get_magsystem('csp')
-fitres = np.genfromtxt('run/fitres.dat', names=True, dtype=None)
+#fitres = np.genfromtxt('run/fitres.dat', names=True, dtype=None)
 
 # SNe that had fits that did not fail
-good = fitres[fitres['status'] == 'OK']['name']
+#good = fitres[fitres['status'] == 'OK']['name']
 
 # keep only successful fits
-results = filter(lambda tup: tup[0].meta['name'] in good, 
-                 results)
+#results = filter(lambda tup: tup[0].meta['name'] in good, 
+#                 results)
+
+# keep only SNe in the hubble flow
+results = filter(lambda tup: tup[0].meta['zhelio'] >= .01, results)
 
 names = [result[0].meta['name'] for result in results]
 
@@ -89,13 +92,12 @@ def wlr(x, y, cov, xlim=None, ylim=None, band='B'):
 
 """
 # broadband book
-with PdfPages('phot.pdf') as pdf:
+with PdfPages('photmag.pdf') as pdf:
     for (lc, config, models) in results:
-        fig = sncosmo.plot_lc(model=models, data=lc, ci=(2.5, 50., 97.5),
-                              figtext=lc.meta['name'])
+        fig = sncosmo.plot_lc(model=models, data=lc, fill_percentiles=(2.5, 50., 97.5), zpsys='csp',
+                              figtext=lc.meta['name'], mag=True)
         pdf.savefig(fig)
-"""
-"""
+
 # bolometric book        
 with PdfPages('bolo.pdf') as pdf:
     from bolomc import bolo
@@ -121,8 +123,6 @@ for (lc, config, models) in results:
     dm15.append(np.mean(tdm15))
     M.append(np.mean(tM))
     cov.append(np.cov(zip(tdm15, tM), rowvar=False))
-pickle.dump((names, dm15, M, cov), open("bol.pkl",'wb'))
-#dm15, M, cov = pickle.load(open("bol.pkl",'rb'))
 print 'bolometric wlr spearman r: mean=%f, std=%f' % mc_spearmanr(dm15, M, cov)
 fig = wlr(dm15, M, cov, band='bol')
 fig.savefig('wlr.pdf')
@@ -130,28 +130,23 @@ fig.savefig('wlr.pdf')
 
 dm15 = []; M = []; cov = []
 for (lc, config, models) in results:
-    if lc.meta['name'] not in good:
-        continue
     tdm15 = []
     tM = []
     for model in models:
         peakmag = model.source_peakabsmag('cspb', csp, cosmo=Planck13)
         peakphase = model.source.peakphase('cspb')
-        tp = model.get('t0') + (1 + model.get('z')) * peakphase
-        mag0 = model.bandmag('cspb', csp, tp)
-        mag15 = model.bandmag('cspb', csp, tp+15)
-        tdm15.append(mag15 - mag0)
+        dm15 = model.source.bandmag('cspb', csp, peakphase+15) - model.source.bandmag('cspb', csp, peakphase)
+        #tp = model.get('t0') + (1 + model.get('z')) * peakphase
+        #mag0 = model.bandmag('cspb', csp, tp)
+        #mag15 = model.bandmag('cspb', csp, tp+15)
+        tdm15.append(dm15)
         tM.append(peakmag)
     if np.mean(tdm15) < 2.:
         dm15.append(np.mean(tdm15))
         M.append(np.mean(tM))
         cov.append(np.cov(zip(tdm15, tM), rowvar=False))
 
-pickle.dump((names, dm15, M, cov), open('B.pkl','wb'))
-
-#dm15, M, cov = pickle.load(open("B.pkl",'rb'))
 print 'b band wlr spearman r: mean=%f, std=%f' % mc_spearmanr(dm15, M, cov)
 fig = wlr(dm15, M, cov, xlim=(.75, 1.75), 
           ylim=(-19.7, -18.4))
 fig.savefig('bbwlr.pdf')
-
