@@ -64,14 +64,14 @@ else:
         model = bump.bump_model(dust_type)
         param_names.append(model._param_names)
 
-        model.set(z=lc.meta['zcmb'])
+        model.set(z=lc.meta['zhelio'])
         model.set(mwebv=burns.get_mwebv(name)[0])
         model.set(hostebv=ebv)
         model.set(hostr_v=r_v)
         model.set(t0=burns.get_t0(name))
 
         # Identify parameters to vary in the fit.
-        vparams = filter(lambda x: 'bump' in x, model._param_names)
+        vparams = filter(lambda x: 'bump' in x or 'slope' in x, model._param_names)
         vparams += ['t0', 's', 'amplitude']
 
         # Set boundaries on the parameters to vary.
@@ -81,7 +81,8 @@ else:
 
         # Get an idea of where the mode of the posterior is by doing
         # an MLE fit.
-        res, model = sncosmo.fit_lc(lc, model, vparams, bounds=bounds)
+        res, model = sncosmo.fit_lc(lc, model, vparams, bounds=bounds, 
+                                    mag=True)
 
         # Add bounds for MCMC fit.
         bounds['t0'] = (model.get('t0') - 2, model.get('t0') + 2)
@@ -94,7 +95,8 @@ else:
                                        nwalkers=config['nwalkers'],
                                        nburn=config['nburn'],
                                        nsamples=config['nsamples'],
-                                       guess_t0=False, guess_amplitude=False)
+                                       guess_t0=False, guess_amplitude=False,
+                                       mag=True)
         samples = fres.samples
 
         # Represent results as a list of dictionaries mapping

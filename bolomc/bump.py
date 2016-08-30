@@ -18,6 +18,13 @@ def bump_model(dust_type):
                           effects=[dust_type(), sncosmo.F99Dust()])
     return model
 
+def linear_warp(phase, wave):
+    p = np.atleast_1d(phase)
+    w = np.atleast_1d(wave)
+    result = w[None, :] - 6260.
+    pslice = 0 if phase.ndim == 0 else slice(None)
+    wslice = 0 if wave.ndim == 0 else slice(None)
+    return result[pslice, wslice]
 
 class SmoothTophat(object):
     """A callable one-dimensional smooth tophat function with steepness
@@ -145,8 +152,8 @@ class BumpSource(sncosmo.Source):
         Must have shape `(num_phases, num_disp)`.
     """
 
-    BUMPS = [Bump('UV', 1000., 3500., -7., 6),
-             Bump('blue', 3500., 6900., -20, 20),
+    BUMPS = [Bump('UV', 1000., 3150., -7., 6),
+             Bump('blue', 3150., 6900., -20, 20),
              Bump('i1', 6900., 9000., -12, 15),
              Bump('i2', 6900., 9000., 20, 32),
              Bump('y1', 9000., 11200., -10, 6),
@@ -182,18 +189,28 @@ class BumpSource(sncosmo.Source):
             self._param_names.append(bump.name + '_bump_amp')
             self.param_names_latex.append(bump.name + '_A')
 
+        self._parameters = np.concatenate((self.parameters, [0.]))
+        self._param_names += ['wave_slope']
+        self.param_names_latex.append('m_\lambda')
+
     def minphase(self):
         return self._parameters[1] * self._phase[0]
 
     def maxphase(self):
         return self._parameters[1] * self._phase[-1]
-        
+    
+    def _warp(self, phase, wave):
+        warp = 1.
+        for bump in self.bumps:
+            warp *= (1 + self.get(bump.name + '_bump_amp') * \
+                         bump.kernel(phase / self.get('s'), wave))
+        warp *= 1 + (self.get('wave_slope') * linear_warp(phase, wave))
+        return warp
+
     def _flux(self, phase, wave):
         f = self._model_flux(phase / self._parameters[1], wave) * self._parameters[0]
-        for i, bump in enumerate(self.bumps):
-            f *= (1 + self._parameters[i + 2] * \
-                  bump.kernel(phase / self._parameters[1], wave))
-        return f
+        warp = self._warp(phase, wave)
+        return f * warp
 
 
     

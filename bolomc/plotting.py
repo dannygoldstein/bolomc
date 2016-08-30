@@ -3,6 +3,7 @@
 __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Plotting tools for bolomc.'
 
+import sncosmo
 import numpy as np
 import h5py
 
@@ -30,7 +31,7 @@ def plot_wsurf(pgrid, wgrid, warp, vmin=0, vmax=2, lc=None):
                         vmax=vmax)
     
     if lc is not None:
-        ax.plot(lc['wave_eff'], lc['mjd'], 'k+')
+        ax.plot([sncosmo.get_bandpass(band).wave_eff for band in lc['filter']], lc['mjd'], 'k+')
     
     ax.invert_yaxis()
     ax.set_xlabel('wavelength (AA)')
