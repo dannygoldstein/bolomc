@@ -20,8 +20,8 @@ lc = sncosmo.read_lc('scripts/sn2011fe.lc', format='ascii')
 name = lc.meta['name']
 
 # Configure the properties of the host galaxy dust.
-dust_type = od94 if config['dust_type'] == 'od94' else f99
-bintype = config['burns_bintype']
+dust_type = od94 
+bintype = 'gmm'
 
 # rv, ebv
 my_jobs = [(3.1, 0.)]
@@ -56,8 +56,7 @@ else:
 
         # Get an idea of where the mode of the posterior is by doing
         # an MLE fit.
-        res, model = sncosmo.fit_lc(lc, model, vparams, bounds=bounds, 
-                                    mag=True)
+        res, model = sncosmo.fit_lc(lc, model, vparams, bounds=bounds)
 
         # Add bounds for MCMC fit.
         bounds['t0'] = (model.get('t0') - 2, model.get('t0') + 2)
@@ -67,11 +66,10 @@ else:
         # Do MCMC.
         fres, fitmod = sncosmo.mcmc_lc(lc, model, vparams,
                                        bounds=bounds,
-                                       nwalkers=config['nwalkers'],
-                                       nburn=config['nburn'],
-                                       nsamples=config['nsamples'],
-                                       guess_t0=False, guess_amplitude=False,
-                                       mag=True)
+                                       nwalkers=200,
+                                       nburn=1000,
+                                       nsamples=20,
+                                       guess_t0=False, guess_amplitude=False)
         samples = fres.samples
 
         # Represent results as a list of dictionaries mapping
@@ -112,5 +110,5 @@ if rank == 0:
         raise Exception("Inter-run model parameter names are inconsistent.")
 
     df = pd.DataFrame(data=samples, columns=param_names[0])
-    pickle.dump((lc, config, df.to_records(index=False)), 
-                open(config['outfile_name'], 'wb'))
+    pickle.dump((lc, None, df.to_records(index=False)), 
+                open('scripts/2011fe.out', 'wb'))
