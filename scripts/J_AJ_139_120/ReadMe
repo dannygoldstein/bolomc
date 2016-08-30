@@ -1,0 +1,99 @@
+J/AJ/139/120        Low-redshift Type-Ia supernovae          (Folatelli+, 2010)
+================================================================================
+The Carnegie Supernova Project: analysis of the first sample of low-redshift
+Type-Ia supernovae.
+    Folatelli G., Phillips M.M., Burns C.R., Contreras C., Hamuy M.,
+    Freedman W.L., Persson S.E., Stritzinger M., Suntzeff N.B., Krisciunas K.,
+    Boldt L., Gonzalez S., Krzeminski W., Morrell N., Roth M., Salgado F.,
+    Madore B.F., Murphy D., Wyatt P., Li W., Filippenko A.V., Miller N.
+   <Astron. J., 139, 120-144 (2010)>
+   =2010AJ....139..120F
+================================================================================
+ADC_Keywords: Supernovae ; Redshifts ; Photometry
+Keywords: distance scale - dust, extinction -
+          galaxies: distances and redshifts - galaxies: ISM -
+          supernovae: general
+
+Abstract:
+    An analysis of the first set of low-redshift (z<0.08) Type Ia
+    supernovae (SNe Ia) monitored by the Carnegie Supernova Project
+    between 2004 and 2006 is presented. The data consist of well-sampled,
+    high-precision optical (ugriBV) and near-infrared (NIR; YJHKs) light
+    curves in a well-understood photometric system.
+
+Description:
+    The Carnegie Supernova Project (CSP) carries out its follow-up
+    observations with the Las Campanas Observatory (LCO) Swope 1m
+    telescope using optical ugriBV bands, and NIR YJH bands. Additionally,
+    YJHKs photometry is obtained with the Wide-field Infrared Camera
+    (WIRC) at the du Pont 2.5m telescope of LCO.
+
+File Summary:
+--------------------------------------------------------------------------------
+ FileName   Lrecl  Records   Explanations
+--------------------------------------------------------------------------------
+ReadMe         80        .   This file
+table1.dat     53       34   Observational properties of the SNe Ia used in
+                              the analysis
+table2.dat     74      281   Light-curve parameters
+--------------------------------------------------------------------------------
+
+See also:
+   J/A+A/437/789  : Restframe I-band light curves of SN Ia (Nobili+, 2005)
+   J/ApJ/645/488  : SN type Ia luminosities (Wang+, 2006)
+   J/ApJ/700/1097 : Light curve parameters of SN Ia (Hicken+, 2009)
+
+Byte-by-byte Description of file: table1.dat
+--------------------------------------------------------------------------------
+   Bytes Format Units   Label     Explanations
+--------------------------------------------------------------------------------
+   1-  2  A2    ---     ---       [SN]
+   4-  9  A6    ---     SN        SN name
+  11- 16  F6.4  ---     zh        Heliocentric redshift from the NASA/IPAC
+                                   Extragalactic Database (NED)
+  18- 23  F6.4  ---     zCMB      Redshift in the frame of the 3K CMB (NED)
+      24  A1    ---   n_zCMB      [a] Note on zCMB (1)
+  26- 30  F5.3  mag     E(B-V)    Galactic reddening (NED)
+  32- 35  F4.2  mag     Dm15(B)   Observed decline rate {Delta}m_15_(B)
+  37- 39  F3.2  mag   e_Dm15(B)   rms uncertainty on Dm15(B)
+  41- 45  F5.2  mag     <mu>      ?=- Average distance modulus from fits of
+                                      Section 4.2
+  47- 49  F3.2  mag   e_<mu>    ? rms uncertainty on <mu>
+  51- 53  A3    ---     Best      [Yes/No ] Does the SN belong to the
+                                            "best-observed" sample?
+--------------------------------------------------------------------------------
+Note (1): a: Value of zCMB corresponding to the systemic recession velocity
+     of the group ARP 327.
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: table2.dat
+--------------------------------------------------------------------------------
+   Bytes Format Units   Label    Explanations
+--------------------------------------------------------------------------------
+   1-  2  A2    ---     ---      [SN]
+   4-  9  A6    ---     SN       SN name
+      11  A1    ---   f_SN       [B] Indicates part of "best-observed" group
+      13  A1    ---     Band     Filter name
+  15- 21  F7.2  d       Tmax     Julian Date of maximum; minus 2453000
+  23- 26  F4.2  d     e_Tmax     Uncertainty in Tmax
+  28- 33  F6.3  mag     mmax     Apparent peak magnitude; K-corrected
+  35- 39  F5.3  mag   e_mmax     Uncertainty in mmax
+  41- 45  F5.3  mag     Dm       ? Decline rate (1)
+  47- 51  F5.3  mag   e_Dm       ? Uncertainty Dm
+  53- 57  F5.1  d       Epmin    First epoch covered by data (2)
+  59- 64  F6.1  d       Epmax    Last epoch covered by data (2)
+  66- 67  I2    ---     Np       [2/62] Number of data points
+  69- 74  A6    ---     Fit      Fit method; "Spline" or "Templ." (template fit)
+                                see section 2.2 for details.
+--------------------------------------------------------------------------------
+Note (1): Measured as the difference in magnitudes at an epoch "t" and
+     maximum light in each band (t=10d for B; t=15d for ug; t=20d for V;
+     t=30d for r; t=35d for iY ; t=40d for JH).
+Note (2): In rest-frame days with respect to the time of maximum.
+--------------------------------------------------------------------------------
+
+History:
+    From electronic version of the journal
+
+================================================================================
+(End)                  Greg Schwarz [AAS], Patricia Vannier [CDS]    24-Mar-2012
