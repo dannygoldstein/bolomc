@@ -11,7 +11,7 @@ except:
 
 files = map(os.path.abspath, glob.glob('data/CSP_Photometry_DR2/*'))
 yaml_base = open('default.yml').read()
-sub = open('edison.sh').read()
+sub = open('cori.sh').read()
 
 for file in files:
     name = file.split('/')[-1].split('opt')[0]
