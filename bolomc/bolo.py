@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 import sncosmo
 from astropy.cosmology import Planck13
+from astropy import units as u
 from scipy.optimize import minimize
 from scipy.interpolate import interp1d
 
@@ -9,13 +10,16 @@ __author__ = 'Danny Goldstein <dgold@berkeley.edu>'
 __whatami__ = 'Light curve plotting utilities.'
 
 
-def bolometric(model, luminosity=True):
+def bolometric(model, luminosity=True, dl=None):
     phase = model.source._phase
     dwave = np.gradient(model.source._wave)
     flux = np.sum(model.source.flux(phase, model.source._wave) * dwave, axis=1)
     if luminosity:
         z = model.get('z')
-        dl = Planck13.luminosity_distance(z).to('cm').value
+        if dl is None:
+            dl = Planck13.luminosity_distance(z).to('cm').value
+        else:
+            dl = (dl * u.Mpc).to('cm').value
         L = 4 * np.pi * flux * dl * dl
         return L
     return flux
@@ -55,14 +59,14 @@ def dm15(model):
 class LCStack(object):
     
     @classmethod
-    def from_models(cls, models, name=None):
+    def from_models(cls, models, name=None, dl=None):
         # check to see if all models have the same phase grid
         phase0 = models[0].source._phase
         if not np.all([m.source._phase == phase0 for m in models]):
             raise ValueError("all models need to have the same phase grid.")
 
         # make the light curves
-        bolos = map(bolometric, models)
+        bolos = [bolometric(model, dl=dl) for model in models]
 
         # return the LCStack
         return cls(phase0, bolos, name=name)
