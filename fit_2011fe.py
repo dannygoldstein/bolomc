@@ -5,11 +5,15 @@ import pickle
 import numpy as np
 import pandas as pd
 from copy import copy
+from mpi4py import MPI
 from bolomc import bump, burns
 
 __whatami__ = "Construct a bolometric light curve from CSP data."
 __author__ = "Danny Goldstein <dgold@berkeley.edu>"
 
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
 
 # Shorthand for a few variables with long names.
 od94 = sncosmo.OD94Dust
