@@ -9,8 +9,11 @@ __author__ = "Danny Goldstein <dgold@berkeley.edu>"
 
 def models(sample_file, thin=1, nkeep=200):
     lc, config, data = pickle.load(open(sample_file, 'rb'))
-    dust_type = sncosmo.OD94Dust if config['dust_type'] == 'od94' \
-        else sncosmo.F99Dust
+    try:
+        dust_type = sncosmo.OD94Dust if config['dust_type'] == 'od94' \
+                    else sncosmo.F99Dust
+    except:
+        dust_type = sncosmo.OD94Dust
     field_names = data.dtype.names
     data = data[::thin]
     data = np.random.choice(data, size=nkeep, replace=False)
