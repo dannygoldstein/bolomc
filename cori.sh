@@ -10,5 +10,5 @@
 #SBATCH -e JOBNAME.e
 #SBATCH -o JOBNAME.o
 
-srun -n 32 python fit.py xx.yml
+srun -n 32 /global/homes/d/dgold/anaconda/bin/python fit.py xx.yml
 
