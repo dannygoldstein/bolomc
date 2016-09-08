@@ -75,7 +75,7 @@ def wlr(x, y, cov, xlim=None, ylim=None, band='B'):
         sigmasq = np.asarray([v.dot(sig).dot(v) for sig in sigma])
         return np.sum(deltasq / (sigmasq + V) + np.log(sigmasq + V))
 
-    res = minimize(obj_func, (0, -21., 0.3**2))
+    res = minimize(obj_func, (0.8, -20.2, 0.14**2))
     x = np.linspace(.75, 1.75)
     y = res.x[0] * x + res.x[1]
 
@@ -90,7 +90,7 @@ def wlr(x, y, cov, xlim=None, ylim=None, band='B'):
  
     return fig
 
-"""
+
 # broadband book
 with PdfPages('photmag.pdf') as pdf:
     for (lc, config, models) in results:
@@ -126,7 +126,7 @@ for (lc, config, models) in results:
 print 'bolometric wlr spearman r: mean=%f, std=%f' % mc_spearmanr(dm15, M, cov)
 fig = wlr(dm15, M, cov, band='bol')
 fig.savefig('wlr.pdf')
-"""
+
 
 dm15 = []; M = []; cov = []
 for (lc, config, models) in results:
@@ -135,18 +135,18 @@ for (lc, config, models) in results:
     for model in models:
         peakmag = model.source_peakabsmag('cspb', csp, cosmo=Planck13)
         peakphase = model.source.peakphase('cspb')
-        dm15 = model.source.bandmag('cspb', csp, peakphase+15) - model.source.bandmag('cspb', csp, peakphase)
+        my_dm15 = model.source.bandmag('cspb', csp, peakphase+15) - model.source.bandmag('cspb', csp, peakphase)
         #tp = model.get('t0') + (1 + model.get('z')) * peakphase
         #mag0 = model.bandmag('cspb', csp, tp)
         #mag15 = model.bandmag('cspb', csp, tp+15)
-        tdm15.append(dm15)
+        tdm15.append(my_dm15)
         tM.append(peakmag)
-    if np.mean(tdm15) < 2.:
+    if np.mean(tdm15) < 1.6:
         dm15.append(np.mean(tdm15))
         M.append(np.mean(tM))
         cov.append(np.cov(zip(tdm15, tM), rowvar=False))
 
 print 'b band wlr spearman r: mean=%f, std=%f' % mc_spearmanr(dm15, M, cov)
-fig = wlr(dm15, M, cov, xlim=(.75, 1.75), 
-          ylim=(-19.7, -18.4))
+fig = wlr(dm15, M, cov)# xlim=(.75, 1.75), 
+          #ylim=(-19.7, -18.4))
 fig.savefig('bbwlr.pdf')
