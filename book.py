@@ -93,11 +93,17 @@ def plot_photmag(models, lc):
 
 def plot_all_bolometric_light_curves(models):
     from bolomc import bolo
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(8, 3.8))
+    dm15list = []
     for model_list in models:
         stack = bolo.LCStack.from_models(model_list)
-        stack.plot(ax=ax)
-    ax.set_ylim(0, 2.5e43)
+        ax, sm, dm15 = stack.plot(ax=ax, error=False, color=True, peak=True)
+        print dm15
+        dm15list.append(dm15)
+    sm.set_array(dm15list)
+    fig.colorbar(sm, label=r'$\Delta m_{15}(\mathrm{bol})$')
+    ax.set_ylim(0, 2.5)
+    ax.set_xlim(-20, 80)
     return fig
     
 

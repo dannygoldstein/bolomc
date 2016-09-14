@@ -67,8 +67,6 @@ class LCStack(object):
 
         # make the light curves
         bolos = [bolometric(model, dl=dl) for model in models]
-
-        # return the LCStack
         return cls(phase0, bolos, name=name)
 
     def __init__(self, phase, L, name=None):
@@ -76,12 +74,14 @@ class LCStack(object):
         self.L = np.atleast_2d(L)
         self.name = name
 
-    def plot(self, ax=None):
+    def plot(self, ax=None, error=True, color=False, peak=False):
 
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import seaborn as sns
+        import matplotlib.colors as colors
+        import matplotlib.cm as cmx
         sns.set_style('ticks')
         
         if ax is None:
@@ -90,11 +90,42 @@ class LCStack(object):
         median_L = np.median(self.L, axis=0)
         L_upper = np.percentile(self.L, 50 + 68 / 2., axis=0)
         L_lower = np.percentile(self.L, 50 - 68 / 2., axis=0)
+
+        func = interp1d(self.phase, median_L, kind='cubic')
+        def minfunc(t):
+            # objective function
+            try:
+                return -func(t) / 1e43
+            except ValueError:
+                return np.inf
+
+        res = minimize(minfunc, 0.)
+        if not res.success:
+            raise RuntimeError(res.message)
+        tp = res.x 
+        Lmax = func(tp)
+        L15 = func(tp + 15.)
+        dm15 = -2.5 * np.log10(L15 / Lmax)
+
+
+        if color:
+            # color code by dm15
+            jet = plt.get_cmap('jet') 
+            cNorm  = colors.Normalize(vmin=0.4, vmax=1.3)
+            scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=jet)
+            c = scalarMap.to_rgba(dm15)[0]
+        else:
+            c = 'k'
+
+        ax.plot(self.phase, median_L/1e43, color=c, lw=1.3)
         
-        ax.plot(self.phase, median_L, 'k', lw=1.3)
-        ax.fill_between(self.phase, L_lower, L_upper, color='k', alpha=0.4)
+        if peak:
+            ax.plot([tp], [Lmax/1e43], linestyle="None", marker='.', color='r')
+        
+        if error: 
+            ax.fill_between(self.phase, L_lower/1e43, L_upper/1e43, color='k', alpha=0.4)
         
         ax.set_xlabel('phase (days)')
-        ax.set_ylabel('L (erg / s)')
+        ax.set_ylabel('L ($10^{43}$ erg / s)')
         sns.despine(ax=ax)
-        return ax
+        return ax if not color else (ax, scalarMap, dm15)
